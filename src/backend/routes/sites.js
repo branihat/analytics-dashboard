@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const database = require('../utils/database');
 const { body, validationResult } = require('express-validator');
+const { authenticateToken } = require('../middleware/auth');
 
 // Validation middleware
 const validateSite = [
@@ -68,9 +69,17 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Create new site
-router.post('/', validateSite, async (req, res) => {
+// Create new site (admin only)
+router.post('/', authenticateToken, validateSite, async (req, res) => {
     try {
+        // Check if user is admin
+        if (req.user.role !== 'admin' && req.user.userType !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Access denied. Admin only.'
+            });
+        }
+
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({
@@ -114,9 +123,17 @@ router.post('/', validateSite, async (req, res) => {
     }
 });
 
-// Update site
-router.put('/:id', validateSite, async (req, res) => {
+// Update site (admin only)
+router.put('/:id', authenticateToken, validateSite, async (req, res) => {
     try {
+        // Check if user is admin
+        if (req.user.role !== 'admin' && req.user.userType !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Access denied. Admin only.'
+            });
+        }
+
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({
@@ -171,9 +188,17 @@ router.put('/:id', validateSite, async (req, res) => {
     }
 });
 
-// Delete site
-router.delete('/:id', async (req, res) => {
+// Delete site (admin only)
+router.delete('/:id', authenticateToken, async (req, res) => {
     try {
+        // Check if user is admin
+        if (req.user.role !== 'admin' && req.user.userType !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Access denied. Admin only.'
+            });
+        }
+
         const { id } = req.params;
 
         const existingSite = await database.get('SELECT id FROM sites WHERE id = ?', [id]);
