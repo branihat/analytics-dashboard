@@ -1,0 +1,100 @@
+/* Map View Page Styles */
+
+.map-view-container {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+.map-view-header {
+  animation: slideDown 0.4s ease-out;
+}
+
+.map-filters {
+  animation: slideDown 0.3s ease-out;
+}
+
+.map-container {
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  height: 600px;
+  animation: slideUp 0.4s ease-out;
+  transition: all 0.3s ease-in-out;
+}
+
+.map-container:hover {
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.map-legend {
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  animation: slideUp 0.4s ease-out 0.2s both;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.legend-item:hover {
+  transform: translateX(4px);
+}
+
+.legend-color {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.filter-button {
+  transition: all 0.2s ease-in-out;
+}
+
+.filter-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.refresh-button {
+  transition: all 0.2s ease-in-out;
+}
+
+.refresh-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Leaflet popup custom styles */
+.leaflet-popup-content-wrapper {
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+  margin: 0.75rem;
+}
+
+/* Image loading in popup */
+.popup-image-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+}
+
+.popup-image {
+  transition: opacity 0.3s ease-in-out;
+}

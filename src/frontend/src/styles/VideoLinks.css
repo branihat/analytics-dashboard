@@ -1,0 +1,106 @@
+/* Video Links Page Styles */
+
+.video-links-container {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+.video-links-header {
+  animation: slideDown 0.4s ease-out;
+}
+
+.video-links-stats {
+  animation: slideUp 0.4s ease-out 0.1s both;
+}
+
+.video-links-filters {
+  animation: slideUp 0.4s ease-out 0.2s both;
+}
+
+.video-links-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .video-links-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .video-links-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.video-card {
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: all 0.3s ease-in-out;
+  opacity: 0;
+  animation: fadeIn 0.5s ease-in-out forwards;
+}
+
+.video-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.video-card:nth-child(1) { animation-delay: 0.05s; }
+.video-card:nth-child(2) { animation-delay: 0.1s; }
+.video-card:nth-child(3) { animation-delay: 0.15s; }
+.video-card:nth-child(4) { animation-delay: 0.2s; }
+.video-card:nth-child(5) { animation-delay: 0.25s; }
+.video-card:nth-child(6) { animation-delay: 0.3s; }
+.video-card:nth-child(7) { animation-delay: 0.35s; }
+.video-card:nth-child(8) { animation-delay: 0.4s; }
+.video-card:nth-child(9) { animation-delay: 0.45s; }
+
+.video-thumbnail {
+  position: relative;
+  height: 12rem;
+  background-color: #e5e7eb;
+  transition: transform 0.3s ease-in-out;
+}
+
+.video-card:hover .video-thumbnail {
+  transform: scale(1.05);
+}
+
+.video-modal {
+  animation: fadeIn 0.3s ease-in-out;
+  backdrop-filter: blur(4px);
+}
+
+.video-modal-content {
+  animation: slideUp 0.3s ease-out;
+}
+
+.video-links-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16rem;
+}
+
+.video-links-empty {
+  text-align: center;
+  padding: 3rem 0;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.stat-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease-in-out;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}

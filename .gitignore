@@ -1,0 +1,124 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.bak
+
+# Production builds
+dist/
+build/
+
+# Environment variables (CRITICAL SECURITY)
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+
+# Database files (SENSITIVE DATA)
+*.db
+*.sqlite
+*.sqlite3
+data/
+database/
+db/
+
+# Authentication & Security
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+secrets/
+auth/
+certificates/
+ssl/
+tls/
+
+# API Keys & Tokens (CRITICAL SECURITY)
+config/secrets.js
+config/keys.js
+**/secrets.json
+**/keys.json
+**/credentials.json
+**/service-account.json
+**/firebase-adminsdk-*.json
+
+# Upload directories (USER DATA)
+uploads/
+temp/
+tmp/
+cache/
+
+# Logs (POTENTIALLY SENSITIVE)
+*.log
+logs/
+log/
+*.log.*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.sublime-project
+.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Testing
+coverage/
+.nyc_output
+test-results/
+playwright-report/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Backup files (POTENTIALLY SENSITIVE)
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+
+# Large sample files
+sample-data/*.mp4
+sample-data/*.jpg
+sample-data/*.png
+sample-data/*.mov
+sample-data/*.avi
+
+# Railway specific
+.railway/
+
+# Security scanning
+.snyk
+security-report.json
+
+# Personal notes and docs (POTENTIALLY SENSITIVE)
+TODO.md
+NOTES.md
+personal/
+private/

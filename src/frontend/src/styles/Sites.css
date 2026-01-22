@@ -1,0 +1,82 @@
+/* Sites Page Styles */
+
+.sites-container {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+.sites-header {
+  animation: slideDown 0.4s ease-out;
+}
+
+.sites-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .sites-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .sites-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.site-card {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease-in-out;
+  opacity: 0;
+  animation: fadeIn 0.5s ease-in-out forwards;
+}
+
+.site-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.site-card:nth-child(1) { animation-delay: 0.05s; }
+.site-card:nth-child(2) { animation-delay: 0.1s; }
+.site-card:nth-child(3) { animation-delay: 0.15s; }
+.site-card:nth-child(4) { animation-delay: 0.2s; }
+.site-card:nth-child(5) { animation-delay: 0.25s; }
+.site-card:nth-child(6) { animation-delay: 0.3s; }
+.site-card:nth-child(7) { animation-delay: 0.35s; }
+.site-card:nth-child(8) { animation-delay: 0.4s; }
+.site-card:nth-child(9) { animation-delay: 0.45s; }
+
+.site-modal {
+  animation: fadeIn 0.3s ease-in-out;
+  backdrop-filter: blur(4px);
+}
+
+.site-modal-content {
+  animation: slideUp 0.3s ease-out;
+}
+
+.sites-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.sites-empty-state {
+  text-align: center;
+  padding: 3rem 0;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.site-action-btn {
+  transition: all 0.2s ease-in-out;
+}
+
+.site-action-btn:hover {
+  transform: scale(1.1);
+}
