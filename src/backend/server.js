@@ -42,6 +42,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use('/uploads', express.static('uploads'));
 
+// Register API routes
 app.use('/api/upload', uploadRoutes);
 app.use('/api/violations', violationsRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -54,6 +55,17 @@ app.use('/api/sites', sitesRoutes);
 app.use('/api/atr', atrRoutes);
 app.use('/api/inferred-reports', inferredReportsRoutes);
 app.use('/api/uploaded-atr', uploadedATRRoutes);
+
+// Log registered routes in production
+if (process.env.NODE_ENV === 'production') {
+  console.log('✅ API Routes registered:');
+  console.log('  - POST /api/auth/login');
+  console.log('  - POST /api/auth/signup');
+  console.log('  - GET /api/auth/profile');
+  console.log('  - GET /api/sites');
+  console.log('  - POST /api/sites (admin only)');
+  console.log('  - And other API endpoints...');
+}
 
 // Image proxy route to handle Google Drive CORS issues
 app.get('/api/image-proxy', async (req, res) => {
@@ -315,14 +327,24 @@ if (process.env.NODE_ENV === 'production') {
     console.error('❌ Public directory does not exist!');
   }
   
-  // Serve static files with proper headers
+  // Serve static files with proper headers (only for non-API routes)
   app.use(express.static(publicPath, {
     maxAge: '1d',
     etag: false
   }));
   
   // Handle React Router - serve index.html for all non-API routes
-  app.get('*', (req, res) => {
+  // This must come AFTER all API routes and static file serving
+  app.get('*', (req, res, next) => {
+    // Skip API routes - they should have been handled above
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ 
+        error: 'API route not found',
+        path: req.path,
+        method: req.method
+      });
+    }
+    
     const indexPath = path.join(publicPath, 'index.html');
     console.log(`🔍 Serving index.html for route: ${req.path}`);
     
