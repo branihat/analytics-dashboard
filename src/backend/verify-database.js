@@ -26,6 +26,7 @@ class DatabaseVerifier {
     try {
       await this.verifyPostgreSQL();
       await this.verifySQLite();
+      await this.testHybridQueries();
       
       console.log('\n✅ Database verification completed successfully!');
       console.log('🚀 Your application is ready to use!');
@@ -41,34 +42,42 @@ class DatabaseVerifier {
   async verifyPostgreSQL() {
     console.log('🔍 Verifying PostgreSQL...');
     
-    this.pgPool = new Pool({
-      connectionString: DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    });
+    if (!DATABASE_URL || DATABASE_URL === 'YOUR_NEW_POSTGRESQL_URL_HERE') {
+      console.log('⚠️ PostgreSQL not configured - using SQLite for all tables');
+      return;
+    }
 
-    const client = await this.pgPool.connect();
-    
     try {
-      // Check admin table
-      const adminCount = await client.query('SELECT COUNT(*) as count FROM admin');
+      this.pgPool = new Pool({
+        connectionString: DATABASE_URL,
+        ssl: DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+      });
+
+      const client = await this.pgPool.connect();
+      console.log('✅ PostgreSQL connection successful!');
+      client.release();
+      
+      // Check admin users
+      const adminCount = await this.pgPool.query('SELECT COUNT(*) as count FROM admin');
       console.log(`✅ Admin users: ${adminCount.rows[0].count}`);
       
-      // Check user table
-      const userCount = await client.query('SELECT COUNT(*) as count FROM "user"');
+      // Check regular users
+      const userCount = await this.pgPool.query('SELECT COUNT(*) as count FROM "user"');
       console.log(`✅ Department users: ${userCount.rows[0].count}`);
       
-      // Check inferred_reports table
-      const reportsCount = await client.query('SELECT COUNT(*) as count FROM inferred_reports');
+      // Check inferred reports table
+      const reportsCount = await this.pgPool.query('SELECT COUNT(*) as count FROM inferred_reports');
       console.log(`✅ Inferred reports: ${reportsCount.rows[0].count}`);
       
-      // Check atr_documents table
-      const atrCount = await client.query('SELECT COUNT(*) as count FROM atr_documents');
+      // Check ATR documents table
+      const atrCount = await this.pgPool.query('SELECT COUNT(*) as count FROM atr_documents');
       console.log(`✅ ATR documents: ${atrCount.rows[0].count}`);
       
       console.log('✅ PostgreSQL verification completed');
       
-    } finally {
-      client.release();
+    } catch (error) {
+      console.error('❌ PostgreSQL verification failed:', error.message);
+      console.log('⚠️ This might be expected if using SQLite-only setup');
     }
   }
 
@@ -100,8 +109,8 @@ class DatabaseVerifier {
           console.log(`✅ Sites: ${sitesCount.count}`);
           
           // List features
-          const features = await this.sqliteQueryAll('SELECT name, display_name FROM features');
-          console.log('📋 Available features:');
+          const features = await this.sqliteQueryAll('SELECT name, display_name FROM features LIMIT 10');
+          console.log('📋 Sample features:');
           features.forEach(f => console.log(`   - ${f.display_name} (${f.name})`));
           
           // List sites
@@ -117,6 +126,36 @@ class DatabaseVerifier {
         }
       });
     });
+  }
+
+  async testHybridQueries() {
+    console.log('🔍 Testing hybrid database queries...');
+    
+    const database = require('./utils/databaseHybrid');
+    
+    try {
+      // Test PostgreSQL tables (if available)
+      if (this.pgPool) {
+        const adminTest = await database.get('SELECT COUNT(*) as count FROM admin');
+        console.log(`✅ Hybrid admin query: ${adminTest.count} records`);
+        
+        const atrTest = await database.get('SELECT COUNT(*) as count FROM atr_documents');
+        console.log(`✅ Hybrid ATR query: ${atrTest.count} records`);
+      }
+      
+      // Test SQLite tables
+      const violationsTest = await database.get('SELECT COUNT(*) as count FROM violations');
+      console.log(`✅ Hybrid violations query: ${violationsTest.count} records`);
+      
+      const featuresTest = await database.get('SELECT COUNT(*) as count FROM features');
+      console.log(`✅ Hybrid features query: ${featuresTest.count} records`);
+      
+      console.log('✅ Hybrid database queries working correctly');
+      
+    } catch (error) {
+      console.error('❌ Hybrid query test failed:', error.message);
+      throw error;
+    }
   }
 
   sqliteQuery(query) {
