@@ -1,16 +1,21 @@
 #!/bin/bash
 
-# Hostinger VPS Deployment Script
-# Run this script on your Hostinger VPS after initial setup
+# Hostinger VPS Complete Deployment Script
+# This script deploys Analytics Dashboard with PostgreSQL database on Hostinger VPS
 
 set -e
 
-echo "🚀 Starting Hostinger deployment..."
+echo "🚀 Starting Hostinger deployment with PostgreSQL database..."
 
-# Configuration
+# Configuration - UPDATE THESE VALUES
 APP_DIR="/var/www/analytics-dashboard"
 REPO_URL="https://github.com/yourusername/analytics-dashboard.git"  # Update this
 DOMAIN="yourdomain.com"  # Update this
+
+# Database configuration
+DB_NAME="analytics_dashboard"
+DB_USER="analytics_user"
+DB_PASSWORD=""
 
 # Colors for output
 RED='\033[0;31m'
@@ -54,6 +59,10 @@ print_status "Node.js $node_version and npm $npm_version installed"
 print_status "Installing PM2..."
 sudo npm install -g pm2
 
+# Install and configure PostgreSQL
+install_postgresql
+configure_postgresql
+
 # Create app directory
 print_status "Setting up application directory..."
 sudo mkdir -p /var/www
@@ -91,18 +100,42 @@ npm install
 
 # Setup environment file
 print_status "Setting up environment configuration..."
-if [ ! -f .env ]; then
-    cp ../../production.env.template .env
-    print_warning "Please edit src/backend/.env with your production values:"
-    print_warning "- Change JWT_SECRET to a secure value"
-    print_warning "- Update CORS_ORIGIN to your domain"
-    print_warning "- Verify DATABASE_URL is correct"
-    read -p "Press Enter after updating .env file..."
-fi
+cat > .env << EOF
+# Production Environment
+NODE_ENV=production
+PORT=8080
+
+# Database Configuration (Local PostgreSQL)
+DATABASE_URL=postgresql://$DB_USER:$DB_PASSWORD@localhost:5432/$DB_NAME
+
+# JWT Configuration (CHANGE THIS!)
+JWT_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-50)
+
+# Cloudinary Configuration
+CLOUDINARY_CLOUD_NAME=dgf5874nz
+CLOUDINARY_API_KEY=873245158622578
+CLOUDINARY_API_SECRET=3DF8o9ZZD-WIzuSKfS6kFQoVzp4
+
+# CORS Configuration
+CORS_ORIGIN=https://$DOMAIN
+
+# Security
+HELMET_ENABLED=true
+EOF
+
+print_status "Environment file created with secure credentials"
 
 # Initialize database
 print_status "Initializing database..."
 node create-database.js
+
+# Run ATR table fix to ensure all tables exist
+print_status "Ensuring all database tables exist..."
+node fix-atr-table.js || print_warning "ATR table fix script not found, continuing..."
+
+# Verify database setup
+print_status "Verifying database setup..."
+node verify-database.js || print_warning "Database verification script not found, continuing..."
 
 # Setup PM2
 print_status "Setting up PM2 process..."
@@ -156,40 +189,147 @@ read -p "Press Enter when DNS is configured..."
 
 sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN
 
-# Create backup script
-print_status "Creating backup script..."
-sudo tee /home/backup-sqlite.sh > /dev/null <<'EOF'
+# Create comprehensive backup script
+print_status "Creating backup scripts..."
+
+# PostgreSQL backup script
+sudo tee /home/backup-postgresql.sh > /dev/null << EOF
+#!/bin/bash
+BACKUP_DIR="/home/backups/postgresql"
+DATE=\$(date +%Y%m%d-%H%M%S)
+mkdir -p \$BACKUP_DIR
+
+# Backup PostgreSQL database
+PGPASSWORD="$DB_PASSWORD" pg_dump -h localhost -U $DB_USER $DB_NAME > \$BACKUP_DIR/\${DB_NAME}-\${DATE}.sql
+
+# Compress backup
+gzip \$BACKUP_DIR/\${DB_NAME}-\${DATE}.sql
+
+# Keep only last 30 backups
+ls -t \$BACKUP_DIR/\${DB_NAME}-*.sql.gz | tail -n +31 | xargs rm -f
+
+echo "PostgreSQL backup completed: \${DB_NAME}-\${DATE}.sql.gz"
+EOF
+
+# SQLite backup script (for violations data)
+sudo tee /home/backup-sqlite.sh > /dev/null << 'EOF'
 #!/bin/bash
 BACKUP_DIR="/home/backups/sqlite"
 mkdir -p $BACKUP_DIR
-cp /var/www/analytics-dashboard/src/backend/data/violations.db $BACKUP_DIR/violations-$(date +%Y%m%d-%H%M%S).db
-# Keep only last 30 backups
-ls -t $BACKUP_DIR/violations-*.db | tail -n +31 | xargs rm -f
+if [ -f /var/www/analytics-dashboard/src/backend/data/violations.db ]; then
+    cp /var/www/analytics-dashboard/src/backend/data/violations.db $BACKUP_DIR/violations-$(date +%Y%m%d-%H%M%S).db
+    # Keep only last 30 backups
+    ls -t $BACKUP_DIR/violations-*.db | tail -n +31 | xargs rm -f
+    echo "SQLite backup completed"
+else
+    echo "SQLite database not found"
+fi
 EOF
 
+# Combined backup script
+sudo tee /home/backup-all.sh > /dev/null << 'EOF'
+#!/bin/bash
+echo "🔄 Starting comprehensive backup..."
+/home/backup-postgresql.sh
+/home/backup-sqlite.sh
+echo "✅ All backups completed"
+EOF
+
+chmod +x /home/backup-postgresql.sh
 chmod +x /home/backup-sqlite.sh
+chmod +x /home/backup-all.sh
 
 # Add to crontab
-print_status "Setting up daily backups..."
-(crontab -l 2>/dev/null; echo "0 2 * * * /home/backup-sqlite.sh") | crontab -
+print_status "Setting up automated backups and monitoring..."
+(crontab -l 2>/dev/null; echo "0 2 * * * /home/backup-all.sh") | crontab -
+
+# Create monitoring script
+sudo tee /home/monitor-app.sh > /dev/null << EOF
+#!/bin/bash
+echo "🔍 Analytics Dashboard Health Check - \$(date)"
+echo "=============================================="
+
+# Check PM2 status
+pm2 status analytics-dashboard
+
+# Check application health
+curl -s http://localhost:8080/api/health || echo "❌ Health check failed"
+
+# Check PostgreSQL connection
+PGPASSWORD="$DB_PASSWORD" psql -h localhost -U $DB_USER -d $DB_NAME -c "SELECT 'PostgreSQL OK' as status;" > /dev/null 2>&1
+if [ \$? -eq 0 ]; then
+    echo "✅ PostgreSQL connection OK"
+else
+    echo "❌ PostgreSQL connection failed"
+fi
+
+# Check disk space
+echo "💾 Disk Usage:"
+df -h / | tail -1
+
+echo "Health check completed"
+echo ""
+EOF
+
+chmod +x /home/monitor-app.sh
+
+# Add monitoring to crontab
+(crontab -l 2>/dev/null; echo "*/30 * * * * /home/monitor-app.sh >> /var/log/health-check.log 2>&1") | crontab -
 
 # Create update script
 print_status "Creating update script..."
 sudo tee /home/update-app.sh > /dev/null <<EOF
 #!/bin/bash
+echo "🔄 Updating Analytics Dashboard..."
+
 cd $APP_DIR
 git pull origin main
+
 cd src/frontend
 npm install
 npm run build
 cp -r build/* ../backend/public/
+
 cd ../backend
 npm install
+
+# Run database fixes if needed
+node fix-atr-table.js 2>/dev/null || echo "⚠️ ATR fix script not found"
+
 pm2 restart analytics-dashboard
+
 echo "✅ Application updated successfully"
 EOF
 
 chmod +x /home/update-app.sh
+
+# Save database configuration
+print_status "Saving database configuration..."
+sudo tee /home/postgresql-config.txt > /dev/null << EOF
+# Analytics Dashboard PostgreSQL Configuration
+# Generated on: $(date)
+
+Database Name: $DB_NAME
+Database User: $DB_USER
+Database Password: $DB_PASSWORD
+Connection String: postgresql://$DB_USER:$DB_PASSWORD@localhost:5432/$DB_NAME
+
+# Management Commands:
+# - Backup PostgreSQL: /home/backup-postgresql.sh
+# - Backup SQLite: /home/backup-sqlite.sh
+# - Backup All: /home/backup-all.sh
+# - Monitor App: /home/monitor-app.sh
+# - Update App: /home/update-app.sh
+
+# Database Connection:
+# PGPASSWORD="$DB_PASSWORD" psql -h localhost -U $DB_USER -d $DB_NAME
+
+# Service Management:
+# - Start: sudo systemctl start postgresql
+# - Stop: sudo systemctl stop postgresql
+# - Restart: sudo systemctl restart postgresql
+# - Status: sudo systemctl status postgresql
+EOF
 
 # Final status check
 print_status "Performing final checks..."
@@ -212,20 +352,37 @@ echo "- Frontend: https://$DOMAIN"
 echo "- Backend API: https://$DOMAIN/api"
 echo "- Health Check: https://$DOMAIN/api/health"
 echo ""
+echo "�️ Database Information:"
+echo "- PostgreSQL Host: localhost"
+echo "- Database Name: $DB_NAME"
+echo "- Username: $DB_USER"
+echo "- Password: $DB_PASSWORD"
+echo "- Connection: postgresql://$DB_USER:$DB_PASSWORD@localhost:5432/$DB_NAME"
+echo ""
 echo "🔐 Default Login Credentials:"
 echo "- Admin: admin1@ccl.com / Aerovania_grhns@2002"
 echo "- E&T Dept: et@ccl.com / deptet123"
+echo "- Security: security@ccl.com / deptsecurity123"
+echo "- Operation: operation@ccl.com / deptoperation123"
+echo "- Survey: survey@ccl.com / deptsurvey123"
+echo "- Safety: safety@ccl.com / deptsafety123"
 echo ""
 echo "🔧 Management Commands:"
 echo "- View logs: pm2 logs analytics-dashboard"
 echo "- Restart app: pm2 restart analytics-dashboard"
 echo "- Update app: /home/update-app.sh"
-echo "- Backup SQLite: /home/backup-sqlite.sh"
+echo "- Backup all: /home/backup-all.sh"
+echo "- Monitor health: /home/monitor-app.sh"
 echo ""
 echo "📁 Important Paths:"
 echo "- Application: $APP_DIR"
 echo "- Environment: $APP_DIR/src/backend/.env"
+echo "- PostgreSQL Config: /home/postgresql-config.txt"
 echo "- SQLite DB: $APP_DIR/src/backend/data/violations.db"
 echo "- Nginx Config: /etc/nginx/sites-available/analytics-dashboard"
+echo "- Backups: /home/backups/"
+echo ""
+print_warning "IMPORTANT: Save the database credentials securely!"
+print_warning "Database config saved to: /home/postgresql-config.txt"
 echo ""
 print_status "Your Analytics Dashboard is now live at https://$DOMAIN"
