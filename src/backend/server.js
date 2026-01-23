@@ -35,7 +35,40 @@ app.use(helmet({
     },
   },
 }));
-app.use(cors());
+// CORS configuration - allow Netlify and localhost in development
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, or curl)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost for development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    
+    // Allow Netlify domains
+    if (origin.includes('netlify.app') || origin.includes('netlify.com')) {
+      return callback(null, true);
+    }
+    
+    // Allow custom domain if set via environment variable
+    const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [];
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // In production, be more restrictive if CORS_ORIGIN is set
+    if (process.env.NODE_ENV === 'production' && process.env.CORS_ORIGIN) {
+      return callback(new Error('Not allowed by CORS'));
+    }
+    
+    // Default: allow all (for development and flexibility)
+    callback(null, true);
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
