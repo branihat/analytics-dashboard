@@ -9,8 +9,8 @@ echo "🚀 Starting Hostinger deployment with PostgreSQL database..."
 
 # Configuration - UPDATE THESE VALUES
 APP_DIR="/var/www/analytics-dashboard"
-REPO_URL="https://github.com/yourusername/analytics-dashboard.git"  # Update this
-DOMAIN="yourdomain.com"  # Update this
+REPO_URL="https://github.com/branihat/analytics-dashboard.git"  # Update this
+DOMAIN="aiminesanalytics.com"  # Update this
 
 # Database configuration
 DB_NAME="analytics_dashboard"
