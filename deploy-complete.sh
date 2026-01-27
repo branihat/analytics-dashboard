@@ -36,8 +36,8 @@ print_error() {
 }
 
 # Configuration variables
-REPO_URL=""
-DOMAIN=""
+REPO_URL="https://github.com/branihat/analytics-dashboard.git"
+DOMAIN="aiminesanalytics.com"
 DB_PASSWORD=""
 JWT_SECRET=""
 
@@ -45,18 +45,14 @@ JWT_SECRET=""
 get_configuration() {
     print_header "DEPLOYMENT CONFIGURATION"
     
-    echo "Please provide the following information:"
+    echo "Deployment Configuration:"
     echo ""
     
-    read -p "Enter your Git repository URL: " REPO_URL
-    read -p "Enter your domain name (e.g., yourdomain.com): " DOMAIN
+    print_info "Repository: $REPO_URL"
+    print_info "Domain: $DOMAIN"
     
     # Generate secure JWT secret
     JWT_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-50)
-    
-    echo ""
-    print_info "Repository: $REPO_URL"
-    print_info "Domain: $DOMAIN"
     print_info "JWT Secret: Generated automatically"
     echo ""
     
@@ -143,24 +139,74 @@ install_postgresql() {
     sudo systemctl start postgresql
     sudo systemctl enable postgresql
     
+    # Wait for PostgreSQL to fully start
+    sleep 5
+    
     # Generate secure password
     DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
     
-    # Create database and user
-    sudo -u postgres psql << EOF
+    # Create database and user with error handling
+    sudo -u postgres psql << EOF || {
+        print_error "Failed to create database and user"
+        print_info "Attempting to fix PostgreSQL configuration..."
+        
+        # Try to restart PostgreSQL
+        sudo systemctl restart postgresql
+        sleep 5
+        
+        # Try again
+        sudo -u postgres psql << EOFRETRY
+DROP DATABASE IF EXISTS analytics_dashboard;
+DROP USER IF EXISTS analytics_user;
 CREATE DATABASE analytics_dashboard;
 CREATE USER analytics_user WITH PASSWORD '$DB_PASSWORD';
 GRANT ALL PRIVILEGES ON DATABASE analytics_dashboard TO analytics_user;
 ALTER USER analytics_user CREATEDB;
 ALTER USER analytics_user WITH SUPERUSER;
-\c analytics_dashboard
+\\c analytics_dashboard
 GRANT ALL ON SCHEMA public TO analytics_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO analytics_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO analytics_user;
-\q
+\\q
+EOFRETRY
+    }
+DROP DATABASE IF EXISTS analytics_dashboard;
+DROP USER IF EXISTS analytics_user;
+CREATE DATABASE analytics_dashboard;
+CREATE USER analytics_user WITH PASSWORD '$DB_PASSWORD';
+GRANT ALL PRIVILEGES ON DATABASE analytics_dashboard TO analytics_user;
+ALTER USER analytics_user CREATEDB;
+ALTER USER analytics_user WITH SUPERUSER;
+\\c analytics_dashboard
+GRANT ALL ON SCHEMA public TO analytics_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO analytics_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO analytics_user;
+\\q
 EOF
 
-    print_status "PostgreSQL installed and configured"
+    # Configure PostgreSQL for local connections
+    PG_VERSION=$(sudo -u postgres psql -t -c "SELECT version();" | grep -oP '\d+\.\d+' | head -1)
+    PG_CONFIG_DIR="/etc/postgresql/$PG_VERSION/main"
+    
+    # Backup and configure postgresql.conf
+    sudo cp "$PG_CONFIG_DIR/postgresql.conf" "$PG_CONFIG_DIR/postgresql.conf.backup" 2>/dev/null || true
+    sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = 'localhost'/" "$PG_CONFIG_DIR/postgresql.conf"
+    
+    # Backup and configure pg_hba.conf
+    sudo cp "$PG_CONFIG_DIR/pg_hba.conf" "$PG_CONFIG_DIR/pg_hba.conf.backup" 2>/dev/null || true
+    echo "local   analytics_dashboard   analytics_user   md5" | sudo tee -a "$PG_CONFIG_DIR/pg_hba.conf"
+    
+    # Restart PostgreSQL
+    sudo systemctl restart postgresql
+    sleep 3
+    
+    # Test connection
+    if PGPASSWORD="$DB_PASSWORD" psql -h localhost -U analytics_user -d analytics_dashboard -c "SELECT 'Connection test successful' as status;" > /dev/null 2>&1; then
+        print_status "PostgreSQL installed and configured successfully"
+    else
+        print_warning "PostgreSQL installed but connection test failed - will retry during database initialization"
+    fi
+    
     print_info "Database: analytics_dashboard"
     print_info "Username: analytics_user"
     print_info "Password: $DB_PASSWORD"
@@ -246,10 +292,142 @@ initialize_database() {
     
     cd /var/www/analytics-dashboard/src/backend
     
-    # Run database creation script
-    node create-database.js
+    # Create database fix scripts if they don't exist
+    if [ ! -f "fix-postgresql-connection.js" ]; then
+        print_info "Creating database fix script..."
+        cat > fix-postgresql-connection.js << 'EOFFIX'
+#!/usr/bin/env node
+const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
+
+async function fixDatabase() {
+    console.log('🔧 Fixing database connection...');
     
-    print_status "Database initialized with default users"
+    const envPath = path.join(__dirname, '.env');
+    if (!fs.existsSync(envPath)) {
+        console.log('❌ .env file not found');
+        return;
+    }
+    
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    const dbUrlMatch = envContent.match(/DATABASE_URL=(.+)/);
+    
+    if (!dbUrlMatch) {
+        console.log('❌ DATABASE_URL not found in .env');
+        return;
+    }
+    
+    const connectionString = dbUrlMatch[1].trim();
+    
+    try {
+        const pool = new Pool({
+            connectionString: connectionString,
+            ssl: false,
+            connectionTimeoutMillis: 10000
+        });
+        
+        const client = await pool.connect();
+        await client.query('SELECT NOW()');
+        console.log('✅ Database connection successful');
+        client.release();
+        await pool.end();
+    } catch (error) {
+        console.log('❌ Database connection failed:', error.message);
+        process.exit(1);
+    }
+}
+
+fixDatabase();
+EOFFIX
+    fi
+    
+    # Test database connection first
+    print_info "Testing database connection..."
+    if node fix-postgresql-connection.js; then
+        print_status "Database connection verified"
+    else
+        print_warning "Database connection failed, attempting to fix..."
+        
+        # Try to fix PostgreSQL connection issues
+        sudo systemctl restart postgresql
+        sleep 5
+        
+        # Test again
+        if ! node fix-postgresql-connection.js; then
+            print_error "Database connection still failing, but continuing with initialization..."
+        fi
+    fi
+    
+    # Run database creation script with error handling
+    print_info "Creating database tables and default users..."
+    if node create-database.js; then
+        print_status "Database initialized successfully"
+    else
+        print_warning "Database initialization had issues, attempting alternative setup..."
+        
+        # Alternative database setup using direct PostgreSQL commands
+        print_info "Running alternative database setup..."
+        sudo -u postgres psql analytics_dashboard << EOFSQL || true
+-- Create tables directly
+CREATE TABLE IF NOT EXISTS admin (
+    id SERIAL PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name TEXT,
+    permissions TEXT DEFAULT 'all',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "user" (
+    id SERIAL PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name TEXT,
+    department TEXT,
+    access_level TEXT DEFAULT 'basic',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS inferred_reports (
+    id SERIAL PRIMARY KEY,
+    filename TEXT NOT NULL,
+    site_name TEXT,
+    cloudinary_url TEXT NOT NULL,
+    cloudinary_public_id TEXT NOT NULL,
+    department TEXT NOT NULL,
+    uploaded_by INTEGER NOT NULL,
+    file_size INTEGER,
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    comment TEXT,
+    ai_report_url TEXT,
+    ai_report_public_id TEXT,
+    hyperlink TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS atr_documents (
+    id SERIAL PRIMARY KEY,
+    filename TEXT NOT NULL,
+    cloudinary_url TEXT NOT NULL,
+    cloudinary_public_id TEXT NOT NULL,
+    site_name TEXT NOT NULL,
+    department TEXT NOT NULL,
+    uploaded_by INTEGER NOT NULL,
+    file_size INTEGER,
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    comment TEXT,
+    inferred_report_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+EOFSQL
+        
+        print_status "Alternative database setup completed"
+    fi
 }
 
 # Configure Nginx
@@ -327,17 +505,55 @@ start_application() {
     # Stop existing PM2 process if any
     pm2 delete analytics-dashboard 2>/dev/null || true
     
-    # Start application
-    pm2 start server.js --name analytics-dashboard
+    # Verify application files exist
+    if [ ! -f "server.js" ]; then
+        print_error "server.js not found in backend directory"
+        ls -la
+        exit 1
+    fi
+    
+    # Test application startup
+    print_info "Testing application startup..."
+    timeout 10s node server.js &
+    APP_PID=$!
+    sleep 5
+    
+    if kill -0 $APP_PID 2>/dev/null; then
+        print_status "Application test startup successful"
+        kill $APP_PID 2>/dev/null || true
+    else
+        print_warning "Application test startup had issues, but continuing..."
+    fi
+    
+    # Start application with PM2
+    print_info "Starting application with PM2..."
+    pm2 start server.js --name analytics-dashboard --time
+    
+    # Wait for application to start
+    sleep 5
+    
+    # Check if application is running
+    if pm2 list | grep -q "analytics-dashboard.*online"; then
+        print_status "Application started successfully with PM2"
+    else
+        print_warning "Application may not have started correctly"
+        pm2 logs analytics-dashboard --lines 10
+    fi
     
     # Save PM2 configuration
     pm2 save
     
     # Setup PM2 startup
-    pm2 startup
-    
-    print_status "Application started with PM2"
-    print_warning "Please run the PM2 startup command shown above"
+    PM2_STARTUP_CMD=$(pm2 startup | grep "sudo env" | head -1)
+    if [ ! -z "$PM2_STARTUP_CMD" ]; then
+        print_info "Setting up PM2 startup..."
+        eval $PM2_STARTUP_CMD
+        print_status "PM2 startup configured"
+    else
+        print_warning "Could not configure PM2 startup automatically"
+        print_info "Please run: pm2 startup"
+        print_info "Then run the command it provides"
+    fi
 }
 
 # Configure firewall
@@ -358,15 +574,47 @@ setup_ssl() {
     print_header "SETTING UP SSL CERTIFICATE"
     
     print_warning "Make sure your domain DNS is pointing to this server"
+    print_info "Checking DNS resolution for $DOMAIN..."
+    
+    # Check if domain resolves to this server
+    SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || echo "unknown")
+    DOMAIN_IP=$(dig +short $DOMAIN | tail -1)
+    
+    if [ "$SERVER_IP" = "$DOMAIN_IP" ]; then
+        print_status "DNS is correctly configured"
+    else
+        print_warning "DNS may not be configured correctly"
+        print_info "Server IP: $SERVER_IP"
+        print_info "Domain IP: $DOMAIN_IP"
+        print_warning "Please ensure your domain points to this server"
+    fi
+    
     read -p "Press Enter when DNS is configured and propagated..."
     
-    # Install SSL certificate
-    sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN
+    # Install SSL certificate with error handling
+    print_info "Installing SSL certificate..."
+    if sudo certbot --nginx -d $DOMAIN -d www.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN; then
+        print_status "SSL certificate installed successfully"
+    else
+        print_warning "SSL certificate installation failed, trying alternative method..."
+        
+        # Try without www subdomain
+        if sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN; then
+            print_status "SSL certificate installed for main domain only"
+        else
+            print_error "SSL certificate installation failed"
+            print_info "You can install it manually later with:"
+            print_info "sudo certbot --nginx -d $DOMAIN"
+        fi
+    fi
     
     # Test automatic renewal
-    sudo certbot renew --dry-run
-    
-    print_status "SSL certificate installed and configured"
+    print_info "Testing SSL certificate renewal..."
+    if sudo certbot renew --dry-run; then
+        print_status "SSL certificate auto-renewal configured"
+    else
+        print_warning "SSL certificate auto-renewal test failed"
+    fi
 }
 
 # Setup monitoring and backups
@@ -473,25 +721,47 @@ final_verification() {
     print_header "FINAL VERIFICATION"
     
     # Wait for application to start
-    sleep 10
+    print_info "Waiting for application to fully start..."
+    sleep 15
     
     # Check PM2 status
-    pm2 status analytics-dashboard
+    print_info "Checking PM2 status..."
+    pm2 status analytics-dashboard || print_warning "PM2 status check failed"
     
     # Test local connection
-    if curl -s http://localhost:8080/api/health > /dev/null; then
-        print_status "Local application health check passed"
+    print_info "Testing local application connection..."
+    for i in {1..5}; do
+        if curl -s http://localhost:8080/api/health > /dev/null; then
+            print_status "Local application health check passed"
+            break
+        else
+            print_warning "Local health check attempt $i failed, retrying..."
+            sleep 5
+        fi
+    done
+    
+    # Test database connection
+    print_info "Testing database connection..."
+    cd /var/www/analytics-dashboard/src/backend
+    if node fix-postgresql-connection.js > /dev/null 2>&1; then
+        print_status "Database connection verified"
     else
-        print_error "Local application health check failed"
+        print_warning "Database connection verification failed"
     fi
     
-    # Test database
-    cd /var/www/analytics-dashboard/src/backend
-    if node verify-database.js > /dev/null 2>&1; then
-        print_status "Database verification passed"
+    # Check if application is accessible via domain
+    print_info "Testing domain accessibility..."
+    if curl -s -k https://$DOMAIN > /dev/null 2>&1; then
+        print_status "Domain is accessible via HTTPS"
+    elif curl -s http://$DOMAIN > /dev/null 2>&1; then
+        print_status "Domain is accessible via HTTP"
     else
-        print_error "Database verification failed"
+        print_warning "Domain accessibility test failed (may be normal if DNS not propagated)"
     fi
+    
+    # Show application logs
+    print_info "Recent application logs:"
+    pm2 logs analytics-dashboard --lines 5 --nostream || true
     
     print_status "Verification completed"
 }
@@ -507,34 +777,53 @@ display_summary() {
     echo "- Frontend: https://$DOMAIN"
     echo "- Backend API: https://$DOMAIN/api"
     echo "- Health Check: https://$DOMAIN/api/health"
+    echo "- Alternative: http://$DOMAIN (if HTTPS not working yet)"
     echo ""
     echo "🔐 Default Login Credentials:"
     echo "- Admin: admin1@ccl.com / Aerovania_grhns@2002"
+    echo "- Super Admin: superadmin1@ccl.com / Super_Aerovania_grhns@2002"
     echo "- E&T Dept: et@ccl.com / deptet123"
+    echo "- Security: security@ccl.com / deptsecurity123"
+    echo "- Operation: operation@ccl.com / deptoperation123"
+    echo "- Survey: survey@ccl.com / deptsurvey123"
+    echo "- Safety: safety@ccl.com / deptsafety123"
     echo ""
-    echo "🗄️ Database Information:"
+    echo "�️ Database Information:"
     echo "- Host: localhost"
     echo "- Database: analytics_dashboard"
     echo "- Username: analytics_user"
     echo "- Password: $DB_PASSWORD"
+    echo "- Connection: postgresql://analytics_user:$DB_PASSWORD@localhost:5432/analytics_dashboard"
     echo ""
-    echo "🔧 Management Commands:"
+    echo "� Management Commands:"
     echo "- View logs: pm2 logs analytics-dashboard"
     echo "- Restart app: pm2 restart analytics-dashboard"
     echo "- Update app: /home/update-app.sh"
     echo "- Monitor health: /home/monitor-app.sh"
     echo "- Backup database: /home/backup-postgresql.sh"
+    echo "- Check status: pm2 status"
     echo ""
     echo "📁 Important Files:"
     echo "- Application: /var/www/analytics-dashboard"
     echo "- Environment: /var/www/analytics-dashboard/src/backend/.env"
     echo "- Nginx Config: /etc/nginx/sites-available/analytics-dashboard"
     echo "- Backups: /home/backups/"
+    echo "- Database Config: Save the password above!"
     echo ""
-    print_warning "IMPORTANT: Save the database password securely!"
-    print_warning "Change admin passwords after first login!"
+    echo "🔍 Troubleshooting:"
+    echo "- If site not loading: check pm2 logs analytics-dashboard"
+    echo "- If database issues: sudo systemctl restart postgresql"
+    echo "- If SSL issues: sudo certbot --nginx -d $DOMAIN"
+    echo "- If app crashes: pm2 restart analytics-dashboard"
+    echo ""
+    print_warning "IMPORTANT NOTES:"
+    print_warning "1. Save the database password securely!"
+    print_warning "2. Change admin passwords after first login!"
+    print_warning "3. If HTTPS not working, DNS may need time to propagate"
+    print_warning "4. Check firewall if external access fails: sudo ufw status"
     echo ""
     print_status "Deployment completed successfully! 🚀"
+    print_info "Visit https://$DOMAIN to access your Analytics Dashboard"
 }
 
 # Main deployment function

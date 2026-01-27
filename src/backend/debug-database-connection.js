@@ -217,8 +217,8 @@ class DatabaseDebugger {
 
 // Main execution
 async function main() {
-  const debugger = new DatabaseDebugger();
-  await debugger.debug();
+  const dbDebugger = new DatabaseDebugger();
+  await dbDebugger.debug();
 }
 
 // Run if called directly
