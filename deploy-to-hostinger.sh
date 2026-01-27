@@ -9,13 +9,13 @@ echo "🚀 Starting Hostinger deployment with PostgreSQL database..."
 
 # Configuration - UPDATE THESE VALUES
 APP_DIR="/var/www/analytics-dashboard"
-REPO_URL="https://github.com/yourusername/analytics-dashboard.git"  # Update this
+REPO_URL="https://github.com/branihat/Analytics-Dashboard.git"  # Update this
 DOMAIN="yourdomain.com"  # Update this
 
 # Database configuration
 DB_NAME="analytics_dashboard"
 DB_USER="analytics_user"
-DB_PASSWORD=""
+DB_PASSWORD="arovania"
 
 # Colors for output
 RED='\033[0;31m'
@@ -131,14 +131,14 @@ node create-database.js
 
 # Run ATR table fix to ensure all tables exist
 print_status "Ensuring all database tables exist..."
-node fix-atr-table.js || print_warning "ATR table fix script not found, continuing..."
+node fix-atr-table.js || print_warning "ATR table fix hogaya , continuing..."
 
 # Verify database setup
 print_status "Verifying database setup..."
-node verify-database.js || print_warning "Database verification script not found, continuing..."
+node verify-database.js || print_warning "Database verify script fix nahi hua ye, continuing..."
 
 # Setup PM2
-print_status "Setting up PM2 process..."
+print_status "Setting up PM2 process ye app management keliye hai"
 pm2 delete analytics-dashboard 2>/dev/null || true
 pm2 start server.js --name analytics-dashboard
 pm2 save
