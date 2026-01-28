@@ -157,7 +157,7 @@ router.get('/list', authenticateToken, async (req, res) => {
     
     // All users (admin and regular) can see all inferred reports
     // Regular users can upload ATRs but cannot upload/edit/delete inferred reports
-    const documents = await InferredReports.getAllDocuments();
+    let documents = await InferredReports.getAllDocuments();
     console.log('📊 Backend - Fetched documents count:', documents.length);
     if (documents.length > 0) {
       console.log('📊 Backend - First document:', documents[0]);
