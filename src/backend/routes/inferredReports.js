@@ -18,7 +18,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB limit
+    fileSize: 25 * 1024 * 1024 // 25MB limit
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/pdf') {
@@ -61,17 +61,6 @@ router.post('/upload', authenticateToken, upload.single('pdf'), async (req, res)
       return res.status(400).json({ error: 'No PDF file provided' });
     }
 
-    // Check file size against Cloudinary limits
-    const maxCloudinarySize = 10 * 1024 * 1024; // 10MB for free tier
-    if (req.file.size > maxCloudinarySize) {
-      console.log(`❌ File too large: ${req.file.size} bytes (max: ${maxCloudinarySize})`);
-      return res.status(400).json({ 
-        error: `File size (${Math.round(req.file.size / 1024 / 1024)}MB) exceeds the 10MB limit. Please compress your PDF or upgrade Cloudinary plan.`,
-        fileSize: req.file.size,
-        maxSize: maxCloudinarySize
-      });
-    }
-
     // Get fields from request body
     const { hyperlink, siteName } = req.body;
 
@@ -110,9 +99,7 @@ router.post('/upload', authenticateToken, upload.single('pdf'), async (req, res)
           public_id: filename.replace('.pdf', ''),
           format: 'pdf',
           type: 'upload',
-          access_mode: 'public',
-          chunk_size: 6000000, // 6MB chunks for large files
-          timeout: 120000 // 2 minute timeout
+          access_mode: 'public'
         },
         (error, result) => {
           if (error) {
@@ -170,7 +157,7 @@ router.get('/list', authenticateToken, async (req, res) => {
     
     // All users (admin and regular) can see all inferred reports
     // Regular users can upload ATRs but cannot upload/edit/delete inferred reports
-    let documents = await InferredReports.getAllDocuments();
+    const documents = await InferredReports.getAllDocuments();
     console.log('📊 Backend - Fetched documents count:', documents.length);
     if (documents.length > 0) {
       console.log('📊 Backend - First document:', documents[0]);
@@ -237,20 +224,7 @@ router.get('/list', authenticateToken, async (req, res) => {
         } catch (error) {
           console.error('Error fetching ATR for document:', doc.id, error);
           return {
-            id: doc.id,
-            filename: doc.filename,
-            site_name: doc.site_name || null,
-            department: doc.department,
-            uploaded_by: doc.uploaded_by_name || 'Unknown',
-            upload_date: doc.upload_date,
-            file_size: doc.file_size,
-            cloudinary_url: doc.cloudinary_url,
-            comment: doc.comment || null,
-            ai_report_url: doc.ai_report_url || null,
-            ai_report_public_id: doc.ai_report_public_id || null,
-            hyperlink: doc.hyperlink || null,
-            canDelete: doc.uploaded_by === req.user.id || req.user.role === 'admin',
-            canEdit: doc.uploaded_by === req.user.id || req.user.role === 'admin',
+            ...doc,
             hasAtr: false,
             atrId: null,
             atrFilename: null,
