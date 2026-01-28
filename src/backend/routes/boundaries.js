@@ -9,9 +9,15 @@ router.get('/', (req, res) => {
     const boundaryPath = path.join(__dirname, '../data/sampleBoundary.geojson');
     
     if (!fs.existsSync(boundaryPath)) {
-      return res.status(404).json({
-        error: 'Boundary data not found',
-        message: 'The boundary GeoJSON file could not be located'
+      // Return empty GeoJSON when no boundary file exists
+      return res.json({
+        success: true,
+        data: {
+          type: "FeatureCollection",
+          features: []
+        },
+        type: 'geojson',
+        message: 'No boundary data configured'
       });
     }
 
@@ -38,9 +44,17 @@ router.get('/kml', (req, res) => {
     const boundaryPath = path.join(__dirname, '../data/sampleBoundary.geojson');
     
     if (!fs.existsSync(boundaryPath)) {
-      return res.status(404).json({
-        error: 'Boundary data not found'
-      });
+      // Return empty KML when no boundary file exists
+      const emptyKml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Drone Safety Boundaries</name>
+    <description>No boundary data configured</description>
+  </Document>
+</kml>`;
+      
+      res.set('Content-Type', 'application/vnd.google-earth.kml+xml');
+      return res.send(emptyKml);
     }
 
     const boundaryData = fs.readFileSync(boundaryPath, 'utf8');
