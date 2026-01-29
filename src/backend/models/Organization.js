@@ -173,10 +173,10 @@ class OrganizationModel {
 
   async getOrganizationUsers(organizationId) {
     try {
-      // Get regular users
+      // Get regular users (only select columns that exist)
       const users = await database.all(
         `SELECT u.id, u.username, u.email, u.full_name, u.department, 
-                u.access_level, u.permissions, u.created_at, u.is_active,
+                u.access_level, u.created_at,
                 'user' as user_type
          FROM "user" u 
          WHERE u.organization_id = ? 
@@ -184,10 +184,10 @@ class OrganizationModel {
         [organizationId]
       );
 
-      // Get admin users
+      // Get admin users (only select columns that exist)
       const admins = await database.all(
-        `SELECT a.id, a.username, a.email, a.full_name, a.department, 
-                a.access_level, a.permissions, a.created_at, a.is_active,
+        `SELECT a.id, a.username, a.email, a.full_name, 
+                a.permissions as access_level, a.permissions, a.created_at,
                 'admin' as user_type
          FROM admin a 
          WHERE a.organization_id = ? 
@@ -195,8 +195,22 @@ class OrganizationModel {
         [organizationId]
       );
 
+      // Add missing fields with defaults
+      const processedUsers = users.map(user => ({
+        ...user,
+        permissions: user.access_level,
+        is_active: true,
+        department: user.department || ''
+      }));
+
+      const processedAdmins = admins.map(admin => ({
+        ...admin,
+        is_active: true,
+        department: '' // Admin table doesn't have department column
+      }));
+
       // Combine and sort by creation date
-      const allUsers = [...users, ...admins].sort((a, b) => 
+      const allUsers = [...processedUsers, ...processedAdmins].sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
       );
 
@@ -247,11 +261,15 @@ class OrganizationModel {
     } = userData;
 
     try {
+      // Hash the password
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+
       const result = await database.run(
         `INSERT INTO "user" 
-         (username, email, password, full_name, department, access_level, permissions, organization_id, created_by, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [username, email, password, full_name, department, access_level, permissions, organization_id, created_by, new Date().toISOString()]
+         (username, email, password_hash, full_name, department, access_level, organization_id, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [username, email, hashedPassword, full_name, department, access_level, organization_id, new Date().toISOString()]
       );
 
       return {
@@ -261,7 +279,7 @@ class OrganizationModel {
         full_name,
         department,
         access_level,
-        permissions,
+        permissions: access_level, // Use access_level as permissions for users
         organization_id,
         created_by,
         created_at: new Date().toISOString(),
@@ -287,11 +305,16 @@ class OrganizationModel {
     } = adminData;
 
     try {
+      // Hash the password
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Admin table only has: id, username, email, password_hash, full_name, permissions, organization_id, created_at
       const result = await database.run(
         `INSERT INTO admin 
-         (username, email, password, full_name, department, access_level, permissions, organization_id, created_by, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [username, email, password, full_name, department, access_level, permissions, organization_id, created_by, new Date().toISOString()]
+         (username, email, password_hash, full_name, permissions, organization_id, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [username, email, hashedPassword, full_name, permissions || 'admin', organization_id, new Date().toISOString()]
       );
 
       return {
@@ -299,9 +322,9 @@ class OrganizationModel {
         username,
         email,
         full_name,
-        department,
-        access_level,
-        permissions,
+        department: '', // Admin table doesn't have department
+        access_level: permissions || 'admin',
+        permissions: permissions || 'admin',
         organization_id,
         created_by,
         created_at: new Date().toISOString(),
