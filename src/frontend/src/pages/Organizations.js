@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Building, Users, FileText, Shield, Eye, EyeOff, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Users, FileText, Shield, Eye, EyeOff, Upload, UserPlus, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import '../styles/Organizations.css';
@@ -9,7 +9,12 @@ const Organizations = () => {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
+  const [selectedOrg, setSelectedOrg] = useState(null);
+  const [expandedOrg, setExpandedOrg] = useState(null);
+  const [orgUsers, setOrgUsers] = useState([]);
+  const [userType, setUserType] = useState('user'); // 'user' or 'admin'
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -18,6 +23,15 @@ const Organizations = () => {
     contact_phone: '',
     address: '',
     logo: null
+  });
+  const [userFormData, setUserFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    full_name: '',
+    department: '',
+    access_level: 'basic',
+    permissions: 'basic'
   });
 
   // Check if user is super admin
@@ -47,6 +61,37 @@ const Organizations = () => {
       toast.error('Failed to load organizations');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrgUsers = async (orgId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/organizations/${orgId}/users`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setOrgUsers(data.users);
+      } else {
+        throw new Error('Failed to fetch organization users');
+      }
+    } catch (error) {
+      console.error('Error fetching organization users:', error);
+      toast.error('Failed to load organization users');
+    }
+  };
+
+  const handleExpandOrg = async (orgId) => {
+    if (expandedOrg === orgId) {
+      setExpandedOrg(null);
+      setOrgUsers([]);
+    } else {
+      setExpandedOrg(orgId);
+      await fetchOrgUsers(orgId);
     }
   };
 
@@ -95,6 +140,77 @@ const Organizations = () => {
       }
     } catch (error) {
       console.error('Error saving organization:', error);
+      toast.error(error.message);
+    }
+  };
+
+  const handleUserSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!userFormData.username.trim() || !userFormData.email.trim() || !userFormData.password.trim()) {
+      toast.error('Username, email, and password are required');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const submitData = {
+        ...userFormData,
+        organization_id: selectedOrg.id,
+        user_type: userType
+      };
+
+      const endpoint = userType === 'admin' ? 'admins' : 'users';
+      const response = await fetch(`/api/organizations/${selectedOrg.id}/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(submitData)
+      });
+
+      if (response.ok) {
+        toast.success(`${userType === 'admin' ? 'Admin' : 'User'} created successfully`);
+        setShowUserModal(false);
+        resetUserForm();
+        fetchOrgUsers(selectedOrg.id);
+        fetchOrganizations(); // Refresh stats
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || `Failed to create ${userType}`);
+      }
+    } catch (error) {
+      console.error(`Error creating ${userType}:`, error);
+      toast.error(error.message);
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName, userType) => {
+    if (!window.confirm(`Are you sure you want to delete ${userType} "${userName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const endpoint = userType === 'admin' ? 'admins' : 'users';
+      const response = await fetch(`/api/organizations/${selectedOrg.id}/${endpoint}/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        toast.success(`${userType === 'admin' ? 'Admin' : 'User'} deleted successfully`);
+        fetchOrgUsers(selectedOrg.id);
+        fetchOrganizations(); // Refresh stats
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || `Failed to delete ${userType}`);
+      }
+    } catch (error) {
+      console.error(`Error deleting ${userType}:`, error);
       toast.error(error.message);
     }
   };
@@ -162,6 +278,18 @@ const Organizations = () => {
     }
   };
 
+  const handleAddUser = (org) => {
+    setSelectedOrg(org);
+    setUserType('user');
+    setShowUserModal(true);
+  };
+
+  const handleAddAdmin = (org) => {
+    setSelectedOrg(org);
+    setUserType('admin');
+    setShowUserModal(true);
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -175,9 +303,28 @@ const Organizations = () => {
     setEditingOrg(null);
   };
 
+  const resetUserForm = () => {
+    setUserFormData({
+      username: '',
+      email: '',
+      password: '',
+      full_name: '',
+      department: '',
+      access_level: 'basic',
+      permissions: 'basic'
+    });
+    setSelectedOrg(null);
+    setUserType('user');
+  };
+
   const handleCloseModal = () => {
     setShowModal(false);
     resetForm();
+  };
+
+  const handleCloseUserModal = () => {
+    setShowUserModal(false);
+    resetUserForm();
   };
 
   if (!isSuperAdmin) {
@@ -287,6 +434,27 @@ const Organizations = () => {
                 <Edit size={16} />
               </button>
               <button
+                className="btn-icon btn-success"
+                onClick={() => handleAddUser(org)}
+                title="Add user"
+              >
+                <UserPlus size={16} />
+              </button>
+              <button
+                className="btn-icon btn-warning"
+                onClick={() => handleAddAdmin(org)}
+                title="Add admin"
+              >
+                <Settings size={16} />
+              </button>
+              <button
+                className="btn-icon"
+                onClick={() => handleExpandOrg(org.id)}
+                title={expandedOrg === org.id ? "Hide users" : "Show users"}
+              >
+                {expandedOrg === org.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+              <button
                 className={`btn-icon ${org.is_active ? 'btn-warning' : 'btn-success'}`}
                 onClick={() => handleToggleStatus(org.id)}
                 title={org.is_active ? 'Deactivate' : 'Activate'}
@@ -303,6 +471,45 @@ const Organizations = () => {
               </button>
             </div>
 
+            {/* Users List */}
+            {expandedOrg === org.id && (
+              <div className="org-users">
+                <div className="users-header">
+                  <h4>Organization Users</h4>
+                </div>
+                {orgUsers.length === 0 ? (
+                  <p className="no-users">No users found for this organization.</p>
+                ) : (
+                  <div className="users-list">
+                    {orgUsers.map((orgUser) => (
+                      <div key={`${orgUser.user_type}-${orgUser.id}`} className="user-item">
+                        <div className="user-info">
+                          <div className="user-name">
+                            <strong>{orgUser.full_name || orgUser.username}</strong>
+                            <span className={`user-type ${orgUser.user_type}`}>
+                              {orgUser.user_type === 'admin' ? 'Admin' : 'User'}
+                            </span>
+                          </div>
+                          <div className="user-details">
+                            <span>{orgUser.email}</span>
+                            {orgUser.department && <span>• {orgUser.department}</span>}
+                            <span>• {orgUser.access_level}</span>
+                          </div>
+                        </div>
+                        <button
+                          className="btn-icon btn-danger"
+                          onClick={() => handleDeleteUser(orgUser.id, orgUser.full_name || orgUser.username, orgUser.user_type)}
+                          title={`Delete ${orgUser.user_type}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="org-footer">
               <small>Created by {org.created_by_name || 'System'}</small>
               <small>{new Date(org.created_at).toLocaleDateString()}</small>
@@ -311,7 +518,7 @@ const Organizations = () => {
         ))}
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Add/Edit Organization Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={handleCloseModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -411,6 +618,111 @@ const Organizations = () => {
                 </button>
                 <button type="submit" className="btn-primary">
                   {editingOrg ? 'Update Organization' : 'Create Organization'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add User/Admin Modal */}
+      {showUserModal && selectedOrg && (
+        <div className="modal-overlay" onClick={handleCloseUserModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>
+                Add {userType === 'admin' ? 'Admin' : 'User'} to {selectedOrg.name}
+              </h2>
+              <button className="modal-close" onClick={handleCloseUserModal}>×</button>
+            </div>
+
+            <form onSubmit={handleUserSubmit} className="org-form">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Username *</label>
+                  <input
+                    type="text"
+                    value={userFormData.username}
+                    onChange={(e) => setUserFormData({...userFormData, username: e.target.value})}
+                    placeholder="e.g., john.doe"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Email *</label>
+                  <input
+                    type="email"
+                    value={userFormData.email}
+                    onChange={(e) => setUserFormData({...userFormData, email: e.target.value})}
+                    placeholder="john.doe@organization.com"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Password *</label>
+                <input
+                  type="password"
+                  value={userFormData.password}
+                  onChange={(e) => setUserFormData({...userFormData, password: e.target.value})}
+                  placeholder="Enter secure password"
+                  required
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Full Name</label>
+                  <input
+                    type="text"
+                    value={userFormData.full_name}
+                    onChange={(e) => setUserFormData({...userFormData, full_name: e.target.value})}
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Department</label>
+                  <input
+                    type="text"
+                    value={userFormData.department}
+                    onChange={(e) => setUserFormData({...userFormData, department: e.target.value})}
+                    placeholder="e.g., Mining Operations"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Access Level</label>
+                  <select
+                    value={userFormData.access_level}
+                    onChange={(e) => setUserFormData({...userFormData, access_level: e.target.value})}
+                  >
+                    <option value="basic">Basic</option>
+                    <option value="advanced">Advanced</option>
+                    {userType === 'admin' && <option value="admin">Admin</option>}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Permissions</label>
+                  <select
+                    value={userFormData.permissions}
+                    onChange={(e) => setUserFormData({...userFormData, permissions: e.target.value})}
+                  >
+                    <option value="basic">Basic</option>
+                    <option value="advanced">Advanced</option>
+                    {userType === 'admin' && <option value="admin">Admin</option>}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="button" className="btn-secondary" onClick={handleCloseUserModal}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  Create {userType === 'admin' ? 'Admin' : 'User'}
                 </button>
               </div>
             </form>

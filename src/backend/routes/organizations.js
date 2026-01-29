@@ -335,4 +335,176 @@ router.delete('/:id', authenticateToken, requireSuperAdmin, async (req, res) => 
   }
 });
 
+// Get organization users
+router.get('/:id/users', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔍 Get Organization Users - ID:', req.params.id);
+
+    const organization = await Organization.getOrganizationById(req.params.id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const users = await Organization.getOrganizationUsers(req.params.id);
+
+    res.json({
+      users
+    });
+
+  } catch (error) {
+    console.error('❌ Get organization users error:', error);
+    res.status(500).json({ error: 'Failed to fetch organization users: ' + error.message });
+  }
+});
+
+// Create organization user
+router.post('/:id/users', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('🔍 Create Organization User - Org ID:', req.params.id);
+
+    const organization = await Organization.getOrganizationById(req.params.id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const { username, email, password, full_name, department, access_level, permissions } = req.body;
+
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Username, email, and password are required' });
+    }
+
+    // Check if username or email already exists
+    const existingUser = await Organization.getUserByUsernameOrEmail(username, email);
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username or email already exists' });
+    }
+
+    const userData = {
+      username: username.trim(),
+      email: email.trim().toLowerCase(),
+      password: password.trim(),
+      full_name: full_name?.trim() || null,
+      department: department?.trim() || null,
+      access_level: access_level || 'basic',
+      permissions: permissions || 'basic',
+      organization_id: req.params.id,
+      created_by: req.user.id
+    };
+
+    const user = await Organization.createOrganizationUser(userData);
+
+    console.log('✅ Organization user created successfully:', user.id);
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user
+    });
+
+  } catch (error) {
+    console.error('❌ Create organization user error:', error);
+    res.status(500).json({ error: 'Failed to create user: ' + error.message });
+  }
+});
+
+// Create organization admin
+router.post('/:id/admins', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('🔍 Create Organization Admin - Org ID:', req.params.id);
+
+    const organization = await Organization.getOrganizationById(req.params.id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const { username, email, password, full_name, department, access_level, permissions } = req.body;
+
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Username, email, and password are required' });
+    }
+
+    // Check if username or email already exists
+    const existingAdmin = await Organization.getAdminByUsernameOrEmail(username, email);
+    if (existingAdmin) {
+      return res.status(400).json({ error: 'Username or email already exists' });
+    }
+
+    const adminData = {
+      username: username.trim(),
+      email: email.trim().toLowerCase(),
+      password: password.trim(),
+      full_name: full_name?.trim() || null,
+      department: department?.trim() || null,
+      access_level: access_level || 'admin',
+      permissions: permissions || 'admin',
+      organization_id: req.params.id,
+      created_by: req.user.id
+    };
+
+    const admin = await Organization.createOrganizationAdmin(adminData);
+
+    console.log('✅ Organization admin created successfully:', admin.id);
+
+    res.status(201).json({
+      message: 'Admin created successfully',
+      admin
+    });
+
+  } catch (error) {
+    console.error('❌ Create organization admin error:', error);
+    res.status(500).json({ error: 'Failed to create admin: ' + error.message });
+  }
+});
+
+// Delete organization user
+router.delete('/:id/users/:userId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('🔍 Delete Organization User - Org ID:', req.params.id, 'User ID:', req.params.userId);
+
+    const organization = await Organization.getOrganizationById(req.params.id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const deleted = await Organization.deleteOrganizationUser(req.params.userId, req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'User not found in this organization' });
+    }
+
+    res.json({
+      message: 'User deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Delete organization user error:', error);
+    res.status(500).json({ error: 'Failed to delete user: ' + error.message });
+  }
+});
+
+// Delete organization admin
+router.delete('/:id/admins/:adminId', authenticateToken, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('🔍 Delete Organization Admin - Org ID:', req.params.id, 'Admin ID:', req.params.adminId);
+
+    const organization = await Organization.getOrganizationById(req.params.id);
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const deleted = await Organization.deleteOrganizationAdmin(req.params.adminId, req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Admin not found in this organization' });
+    }
+
+    res.json({
+      message: 'Admin deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Delete organization admin error:', error);
+    res.status(500).json({ error: 'Failed to delete admin: ' + error.message });
+  }
+});
+
 module.exports = router;

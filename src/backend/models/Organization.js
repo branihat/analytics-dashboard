@@ -170,6 +170,174 @@ class OrganizationModel {
       return { users: 0, admins: 0, reports: 0 };
     }
   }
+
+  async getOrganizationUsers(organizationId) {
+    try {
+      // Get regular users
+      const users = await database.all(
+        `SELECT u.id, u.username, u.email, u.full_name, u.department, 
+                u.access_level, u.permissions, u.created_at, u.is_active,
+                'user' as user_type
+         FROM "user" u 
+         WHERE u.organization_id = ? 
+         ORDER BY u.created_at DESC`,
+        [organizationId]
+      );
+
+      // Get admin users
+      const admins = await database.all(
+        `SELECT a.id, a.username, a.email, a.full_name, a.department, 
+                a.access_level, a.permissions, a.created_at, a.is_active,
+                'admin' as user_type
+         FROM admin a 
+         WHERE a.organization_id = ? 
+         ORDER BY a.created_at DESC`,
+        [organizationId]
+      );
+
+      // Combine and sort by creation date
+      const allUsers = [...users, ...admins].sort((a, b) => 
+        new Date(b.created_at) - new Date(a.created_at)
+      );
+
+      return allUsers;
+    } catch (err) {
+      console.error('❌ Get organization users error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  async getUserByUsernameOrEmail(username, email) {
+    try {
+      const user = await database.get(
+        'SELECT id, username, email FROM "user" WHERE username = ? OR email = ?',
+        [username, email]
+      );
+      return user;
+    } catch (err) {
+      console.error('❌ Get user by username/email error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  async getAdminByUsernameOrEmail(username, email) {
+    try {
+      const admin = await database.get(
+        'SELECT id, username, email FROM admin WHERE username = ? OR email = ?',
+        [username, email]
+      );
+      return admin;
+    } catch (err) {
+      console.error('❌ Get admin by username/email error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  async createOrganizationUser(userData) {
+    const { 
+      username, 
+      email,
+      password,
+      full_name,
+      department,
+      access_level,
+      permissions,
+      organization_id,
+      created_by
+    } = userData;
+
+    try {
+      const result = await database.run(
+        `INSERT INTO "user" 
+         (username, email, password, full_name, department, access_level, permissions, organization_id, created_by, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [username, email, password, full_name, department, access_level, permissions, organization_id, created_by, new Date().toISOString()]
+      );
+
+      return {
+        id: result.id,
+        username,
+        email,
+        full_name,
+        department,
+        access_level,
+        permissions,
+        organization_id,
+        created_by,
+        created_at: new Date().toISOString(),
+        user_type: 'user'
+      };
+    } catch (err) {
+      console.error('❌ Create organization user error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  async createOrganizationAdmin(adminData) {
+    const { 
+      username, 
+      email,
+      password,
+      full_name,
+      department,
+      access_level,
+      permissions,
+      organization_id,
+      created_by
+    } = adminData;
+
+    try {
+      const result = await database.run(
+        `INSERT INTO admin 
+         (username, email, password, full_name, department, access_level, permissions, organization_id, created_by, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [username, email, password, full_name, department, access_level, permissions, organization_id, created_by, new Date().toISOString()]
+      );
+
+      return {
+        id: result.id,
+        username,
+        email,
+        full_name,
+        department,
+        access_level,
+        permissions,
+        organization_id,
+        created_by,
+        created_at: new Date().toISOString(),
+        user_type: 'admin'
+      };
+    } catch (err) {
+      console.error('❌ Create organization admin error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  async deleteOrganizationUser(userId, organizationId) {
+    try {
+      const result = await database.run(
+        'DELETE FROM "user" WHERE id = ? AND organization_id = ?',
+        [userId, organizationId]
+      );
+      return result.changes > 0;
+    } catch (err) {
+      console.error('❌ Delete organization user error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  async deleteOrganizationAdmin(adminId, organizationId) {
+    try {
+      const result = await database.run(
+        'DELETE FROM admin WHERE id = ? AND organization_id = ?',
+        [adminId, organizationId]
+      );
+      return result.changes > 0;
+    } catch (err) {
+      console.error('❌ Delete organization admin error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
 }
 
 module.exports = new OrganizationModel();
