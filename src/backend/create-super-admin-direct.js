@@ -47,8 +47,8 @@ async function createSuperAdminDirect() {
       const hashedPassword = await bcrypt.hash('SuperAero@2025', 10);
       
       const result = await client.query(
-        'INSERT INTO admin (username, email, password_hash, full_name, permissions, organization_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-        ['SuperAdmin', 'superadmin@aero.com', hashedPassword, 'Aerovania Super Administrator', 'all', null]
+        'INSERT INTO admin (username, email, password_hash, full_name, permissions) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+        ['SuperAdmin', 'superadmin@aero.com', hashedPassword, 'Aerovania Super Administrator', 'all']
       );
       
       console.log('✅ Super admin created successfully!');
@@ -57,11 +57,15 @@ async function createSuperAdminDirect() {
     
     // Ensure CCL admin is properly configured
     console.log('🔍 Configuring CCL admin...');
-    await client.query(
+    const cclUpdateResult = await client.query(
       'UPDATE admin SET organization_id = $1 WHERE email = $2',
       [1, 'admin1@ccl.com']
     );
-    console.log('✅ CCL admin configured');
+    if (cclUpdateResult.rowCount > 0) {
+      console.log('✅ CCL admin configured');
+    } else {
+      console.log('⚠️ CCL admin not found or already configured');
+    }
     
     // List all admins
     console.log('');
