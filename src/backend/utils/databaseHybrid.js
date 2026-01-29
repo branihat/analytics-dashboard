@@ -123,8 +123,8 @@ class HybridDatabase {
       
       // Admin users
       const adminUsers = [
-        { username: 'Admin', email: 'admin1@ccl.com', password: 'Aerovania_grhns@2002', full_name: 'Aerovania Master', permissions: 'all' },
-        { username: 'Admin', email: 'superadmin1@ccl.com', password: 'Super_Aerovania_grhns@2002', full_name: 'Super Aerovania Master', permissions: 'all' }
+        { username: 'Admin', email: 'admin1@ccl.com', password: 'Aerovania_grhns@2002', full_name: 'CCL Administrator', permissions: 'all', organization_id: 1 },
+        { username: 'SuperAdmin', email: 'superadmin@aero.com', password: 'SuperAero@2025', full_name: 'Aerovania Super Administrator', permissions: 'all', organization_id: null }
       ];
       
       // Department users
@@ -143,8 +143,8 @@ class HybridDatabase {
         try {
           const hashedPassword = await bcrypt.hash(admin.password, 10);
           await this.run(
-            'INSERT INTO admin (username, email, password_hash, full_name, permissions) VALUES (?, ?, ?, ?, ?)',
-            [admin.username, admin.email, hashedPassword, admin.full_name, admin.permissions]
+            'INSERT INTO admin (username, email, password_hash, full_name, permissions, organization_id) VALUES (?, ?, ?, ?, ?, ?)',
+            [admin.username, admin.email, hashedPassword, admin.full_name, admin.permissions, admin.organization_id]
           );
           created++;
           console.log(`✅ Created admin: ${admin.email}`);
@@ -189,6 +189,34 @@ class HybridDatabase {
       await client.query('BEGIN');
       console.log('✅ PostgreSQL transaction started');
 
+      // Organizations table (must be created first due to foreign key references)
+      console.log('🔄 Creating organizations table...');
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS organizations (
+          id SERIAL PRIMARY KEY,
+          name TEXT UNIQUE NOT NULL,
+          code TEXT UNIQUE NOT NULL,
+          description TEXT,
+          logo_url TEXT,
+          contact_email TEXT,
+          contact_phone TEXT,
+          address TEXT,
+          is_active BOOLEAN DEFAULT true,
+          created_by INTEGER,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('✅ Organizations table created');
+
+      // Insert default CCL organization if not exists
+      await client.query(`
+        INSERT INTO organizations (name, code, description, is_active, created_at)
+        VALUES ('Coal India Limited', 'CCL', 'Default organization for Coal India Limited operations', true, CURRENT_TIMESTAMP)
+        ON CONFLICT (code) DO NOTHING
+      `);
+      console.log('✅ Default CCL organization ensured');
+
       // Admin table
       console.log('🔄 Creating admin table...');
       await client.query(`
@@ -199,6 +227,7 @@ class HybridDatabase {
           password_hash TEXT NOT NULL,
           full_name TEXT,
           permissions TEXT DEFAULT 'all',
+          organization_id INTEGER REFERENCES organizations(id) DEFAULT 1,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
@@ -215,6 +244,7 @@ class HybridDatabase {
           full_name TEXT,
           department TEXT,
           access_level TEXT DEFAULT 'basic',
+          organization_id INTEGER REFERENCES organizations(id) DEFAULT 1,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
@@ -237,6 +267,7 @@ class HybridDatabase {
           ai_report_url TEXT,
           ai_report_public_id TEXT,
           hyperlink TEXT,
+          organization_id INTEGER REFERENCES organizations(id) DEFAULT 1,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -259,6 +290,7 @@ class HybridDatabase {
           upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           file_size INTEGER,
           comment TEXT,
+          organization_id INTEGER REFERENCES organizations(id) DEFAULT 1,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -280,6 +312,7 @@ class HybridDatabase {
           upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           comment TEXT,
           inferred_report_id INTEGER,
+          organization_id INTEGER REFERENCES organizations(id) DEFAULT 1,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -287,7 +320,7 @@ class HybridDatabase {
       console.log('✅ ATR Documents table created');
 
       await client.query('COMMIT');
-      console.log('✅ PostgreSQL tables created successfully (admin, user, inferred_reports, uploaded_atr, atr_documents)');
+      console.log('✅ PostgreSQL tables created successfully (organizations, admin, user, inferred_reports, uploaded_atr, atr_documents)');
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('❌ Error creating PostgreSQL tables:', error);
@@ -403,7 +436,7 @@ class HybridDatabase {
 
   // Determine which database to use based on table
   getDatabase(table) {
-    const postgresTables = ['admin', 'user', 'inferred_reports', 'uploaded_atr', 'atr_documents'];
+    const postgresTables = ['admin', 'user', 'inferred_reports', 'uploaded_atr', 'atr_documents', 'organizations'];
     
     if (this.usePostgres && postgresTables.includes(table)) {
       return 'postgres';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, Upload, Map, Table2, LogOut, Layers, Video, MapPin, FileText, User, Menu, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BarChart3, Upload, Map, Table2, LogOut, Layers, Video, MapPin, FileText, User, Menu, X, ChevronLeft, ChevronRight, Building } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Sidebar = () => {
@@ -9,14 +9,16 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // Check if user is admin
+  // Check if user is admin or super admin
   const isAdmin = user?.role === 'admin' || user?.userType === 'admin';
+  const isSuperAdmin = user?.email === 'superadmin@aero.com' || user?.username === 'SuperAdmin';
 
   // Navigation items
   const allNavItems = [
     { path: '/', name: 'Dashboard', icon: BarChart3 },
     { path: '/features', name: 'Features', icon: Layers },
     { path: '/sites', name: 'Sites', icon: MapPin },
+    { path: '/organizations', name: 'Organizations', icon: Building, superAdminOnly: true },
     { path: '/upload', name: 'Upload', icon: Upload, adminOnly: true },
     { path: '/inferred-reports', name: 'Inferred Reports', icon: FileText },
     { path: '/uploaded-atr', name: 'Uploaded ATR', icon: FileText },
@@ -24,7 +26,11 @@ const Sidebar = () => {
     { path: '/table', name: 'Table View', icon: Table2 },
   ];
 
-  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin);
+  const navItems = allNavItems.filter(item => {
+    if (item.superAdminOnly && !isSuperAdmin) return false;
+    if (item.adminOnly && !isAdmin) return false;
+    return true;
+  });
 
   // Load collapsed state from localStorage
   useEffect(() => {

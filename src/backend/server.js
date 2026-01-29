@@ -16,6 +16,7 @@ const atrRoutes = require('./routes/atr');
 const inferredReportsRoutes = require('./routes/inferredReports');
 const uploadedATRRoutes = require('./routes/uploadedATR');
 const restoreRoutes = require('./routes/restore');
+const organizationsRoutes = require('./routes/organizations');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -88,6 +89,7 @@ app.use('/api/sites', sitesRoutes);
 app.use('/api/atr', atrRoutes);
 app.use('/api/inferred-reports', inferredReportsRoutes);
 app.use('/api/uploaded-atr', uploadedATRRoutes);
+app.use('/api/organizations', organizationsRoutes);
 
 // Log registered routes in production
 if (process.env.NODE_ENV === 'production') {

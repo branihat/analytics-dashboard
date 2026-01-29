@@ -19,6 +19,7 @@ import ProfilePage from './pages/ProfilePage';
 import Sites from './pages/Sites';
 import InferredReports from './pages/InferredReports';
 import UploadedATR from './pages/UploadedATR';
+import Organizations from './pages/Organizations';
 
 // Layout wrapper component
 const AppLayout = ({ children }) => {
@@ -89,6 +90,11 @@ function App() {
             <Route path="/sites" element={
               <ProtectedRoute>
                 <Sites />
+              </ProtectedRoute>
+            } />
+            <Route path="/organizations" element={
+              <ProtectedRoute>
+                <Organizations />
               </ProtectedRoute>
             } />
             <Route path="/inferred-reports" element={
