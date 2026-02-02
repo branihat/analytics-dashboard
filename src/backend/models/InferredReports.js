@@ -10,15 +10,16 @@ class InferredReportsModel {
       department, 
       uploaded_by, 
       file_size,
-      hyperlink
+      hyperlink,
+      organization_id
     } = documentData;
 
     try {
       const result = await database.run(
         `INSERT INTO inferred_reports 
-         (filename, cloudinary_url, cloudinary_public_id, site_name, department, uploaded_by, file_size, upload_date, hyperlink) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [filename, cloudinary_url, cloudinary_public_id, site_name || null, department, uploaded_by, file_size, new Date().toISOString(), hyperlink]
+         (filename, cloudinary_url, cloudinary_public_id, site_name, department, uploaded_by, file_size, upload_date, hyperlink, organization_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [filename, cloudinary_url, cloudinary_public_id, site_name || null, department, uploaded_by, file_size, new Date().toISOString(), hyperlink, organization_id]
       );
 
       return {
@@ -29,7 +30,8 @@ class InferredReportsModel {
         uploaded_by,
         file_size,
         upload_date: new Date().toISOString(),
-        hyperlink: hyperlink
+        hyperlink: hyperlink,
+        organization_id: organization_id
       };
     } catch (err) {
       throw new Error(`Database error: ${err.message}`);
@@ -62,7 +64,7 @@ class InferredReportsModel {
       const documents = await database.all(
         `SELECT ir.id, ir.filename, ir.cloudinary_url, ir.cloudinary_public_id, 
                 ir.site_name, ir.department, ir.uploaded_by, ir.file_size, ir.upload_date,
-                ir.comment, ir.ai_report_url, ir.ai_report_public_id, ir.hyperlink,
+                ir.comment, ir.ai_report_url, ir.ai_report_public_id, ir.hyperlink, ir.organization_id,
                 u.username as uploaded_by_name 
          FROM inferred_reports ir 
          LEFT JOIN "user" u ON ir.uploaded_by = u.id 
@@ -76,12 +78,33 @@ class InferredReportsModel {
     }
   }
 
+  async getDocumentsByOrganization(organizationId) {
+    try {
+      const documents = await database.all(
+        `SELECT ir.id, ir.filename, ir.cloudinary_url, ir.cloudinary_public_id, 
+                ir.site_name, ir.department, ir.uploaded_by, ir.file_size, ir.upload_date,
+                ir.comment, ir.ai_report_url, ir.ai_report_public_id, ir.hyperlink, ir.organization_id,
+                u.username as uploaded_by_name 
+         FROM inferred_reports ir 
+         LEFT JOIN "user" u ON ir.uploaded_by = u.id 
+         WHERE ir.organization_id = ?
+         ORDER BY ir.upload_date DESC`,
+        [organizationId]
+      );
+      console.log('📊 Model - Organization filtered documents count:', documents.length);
+      return documents;
+    } catch (err) {
+      console.error('❌ Model error:', err);
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
   async getDocumentById(id) {
     try {
       const document = await database.get(
         `SELECT ir.id, ir.filename, ir.cloudinary_url, ir.cloudinary_public_id, 
                 ir.site_name, ir.department, ir.uploaded_by, ir.file_size, ir.upload_date,
-                ir.comment, ir.ai_report_url, ir.ai_report_public_id, ir.hyperlink,
+                ir.comment, ir.ai_report_url, ir.ai_report_public_id, ir.hyperlink, ir.organization_id,
                 u.username as uploaded_by_name 
          FROM inferred_reports ir 
          LEFT JOIN "user" u ON ir.uploaded_by = u.id 

@@ -46,20 +46,20 @@ class UserModel {
       // If role is specified, search only in that specific table
       if (selectedRole === 'admin') {
         user = await database.get(
-          'SELECT id, username, email, password_hash, full_name, permissions, created_at FROM admin WHERE email = ?',
+          'SELECT id, username, email, password_hash, full_name, permissions, organization_id, created_at FROM admin WHERE email = ?',
           [email]
         );
         userType = user ? 'admin' : null;
       } else if (selectedRole === 'user') {
         user = await database.get(
-          'SELECT id, username, email, password_hash, full_name, department, access_level, created_at FROM "user" WHERE email = ?',
+          'SELECT id, username, email, password_hash, full_name, department, access_level, organization_id, created_at FROM "user" WHERE email = ?',
           [email]
         );
         userType = user ? 'user' : null;
       } else {
         // Fallback: search all tables if no role specified (backward compatibility)
         user = await database.get(
-          'SELECT id, username, email, password_hash, full_name, permissions, created_at FROM admin WHERE email = ?',
+          'SELECT id, username, email, password_hash, full_name, permissions, organization_id, created_at FROM admin WHERE email = ?',
           [email]
         );
 
@@ -67,7 +67,7 @@ class UserModel {
           userType = 'admin';
         } else {
           user = await database.get(
-            'SELECT id, username, email, password_hash, full_name, department, access_level, created_at FROM "user" WHERE email = ?',
+            'SELECT id, username, email, password_hash, full_name, department, access_level, organization_id, created_at FROM "user" WHERE email = ?',
             [email]
           );
 
@@ -105,6 +105,10 @@ class UserModel {
       let permissions = 'basic';
       let department = null;
       let fullName = user.full_name || user.username;
+      let organizationId = user.organization_id;
+
+      // Check if this is the super admin (not tied to any organization)
+      const isSuperAdmin = user.email === 'superadmin@aero.com' || user.username === 'SuperAdmin';
 
       if (userType === 'admin') {
         role = 'admin';
@@ -124,7 +128,9 @@ class UserModel {
           role: role,
           userType: userType,
           permissions: permissions,
-          department: department
+          department: department,
+          organizationId: organizationId,
+          isSuperAdmin: isSuperAdmin
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }
@@ -140,6 +146,8 @@ class UserModel {
           userType: userType,
           permissions: permissions,
           department: department,
+          organizationId: organizationId,
+          isSuperAdmin: isSuperAdmin,
           accessLevel: user.access_level || 'basic'
         },
         token
@@ -155,27 +163,27 @@ class UserModel {
 
       if (userType === 'admin') {
         user = await database.get(
-          'SELECT id, username, email, full_name, permissions, created_at FROM admin WHERE id = ?',
+          'SELECT id, username, email, full_name, permissions, organization_id, created_at FROM admin WHERE id = ?',
           [userId]
         );
         if (user) user.user_type = 'admin';
       } else if (userType === 'user') {
         user = await database.get(
-          'SELECT id, username, email, full_name, department, access_level, created_at FROM "user" WHERE id = ?',
+          'SELECT id, username, email, full_name, department, access_level, organization_id, created_at FROM "user" WHERE id = ?',
           [userId]
         );
         if (user) user.user_type = 'user';
       } else {
         // Check all tables if userType not specified
         user = await database.get(
-          'SELECT id, username, email, full_name, permissions, created_at FROM admin WHERE id = ?',
+          'SELECT id, username, email, full_name, permissions, organization_id, created_at FROM admin WHERE id = ?',
           [userId]
         );
         if (user) user.user_type = 'admin';
 
         if (!user) {
           user = await database.get(
-            'SELECT id, username, email, full_name, department, access_level, created_at FROM "user" WHERE id = ?',
+            'SELECT id, username, email, full_name, department, access_level, organization_id, created_at FROM "user" WHERE id = ?',
             [userId]
           );
           if (user) user.user_type = 'user';
@@ -194,6 +202,9 @@ class UserModel {
         throw new Error('User not found');
       }
 
+      // Check if this is the super admin
+      const isSuperAdmin = user.email === 'superadmin@aero.com' || user.username === 'SuperAdmin';
+
       return {
         id: user.id,
         username: user.username,
@@ -203,6 +214,8 @@ class UserModel {
         userType: user.user_type,
         permissions: user.permissions || user.access_level || 'basic',
         department: user.department || null,
+        organizationId: user.organization_id,
+        isSuperAdmin: isSuperAdmin,
         created_at: user.created_at
       };
     } catch (err) {

@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { v2: cloudinary } = require('cloudinary');
 const InferredReports = require('../models/InferredReports');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, enforceOrganizationAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -44,10 +44,10 @@ const getDepartmentFolder = (department) => {
 };
 
 // Upload Inferred Report document
-router.post('/upload', authenticateToken, upload.single('pdf'), async (req, res) => {
+router.post('/upload', authenticateToken, enforceOrganizationAccess, upload.single('pdf'), async (req, res) => {
   try {
     console.log('🔍 Inferred Report Upload Request Started');
-    console.log('📤 User:', req.user?.username, 'Department:', req.user?.department);
+    console.log('📤 User:', req.user?.username, 'Department:', req.user?.department, 'Organization:', req.user?.organizationId);
     console.log('📁 File received:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'No file');
 
     // Check if user is admin
@@ -87,6 +87,7 @@ router.post('/upload', authenticateToken, upload.single('pdf'), async (req, res)
 
     console.log('📂 Department:', department);
     console.log('📂 Department folder:', departmentFolder);
+    console.log('🏢 Organization ID:', req.user.organizationId);
     console.log('📄 Generated filename:', filename);
 
     // Upload to Cloudinary
@@ -113,7 +114,7 @@ router.post('/upload', authenticateToken, upload.single('pdf'), async (req, res)
       ).end(req.file.buffer);
     });
 
-    // Save to database
+    // Save to database with organization_id
     console.log('💾 Saving to database...');
     const documentData = {
       filename: req.file.originalname,
@@ -123,7 +124,8 @@ router.post('/upload', authenticateToken, upload.single('pdf'), async (req, res)
       department: department,
       uploaded_by: req.user.id,
       file_size: req.file.size,
-      hyperlink: hyperlink || null
+      hyperlink: hyperlink || null,
+      organization_id: req.user.organizationId // Add organization context
     };
 
     const document = await InferredReports.createDocument(documentData);
@@ -137,7 +139,8 @@ router.post('/upload', authenticateToken, upload.single('pdf'), async (req, res)
         department: document.department,
         upload_date: document.upload_date,
         file_size: document.file_size,
-        hyperlink: document.hyperlink
+        hyperlink: document.hyperlink,
+        organization_id: document.organization_id
       }
     });
 
@@ -151,16 +154,25 @@ router.post('/upload', authenticateToken, upload.single('pdf'), async (req, res)
 });
 
 // Get Inferred Reports with filtering
-router.get('/list', authenticateToken, async (req, res) => {
+router.get('/list', authenticateToken, enforceOrganizationAccess, async (req, res) => {
   try {
     const { department, site, startDate, search } = req.query;
     
-    // All users (admin and regular) can see all inferred reports
-    // Regular users can upload ATRs but cannot upload/edit/delete inferred reports
-    let documents = await InferredReports.getAllDocuments();
+    console.log('🔍 Fetching inferred reports for organization:', req.organizationFilter || 'ALL (Super Admin)');
+    
+    // Get documents with organization filtering
+    let documents;
+    if (req.organizationFilter === null) {
+      // Super admin - see all documents
+      documents = await InferredReports.getAllDocuments();
+    } else {
+      // Regular users - only see their organization's documents
+      documents = await InferredReports.getDocumentsByOrganization(req.organizationFilter);
+    }
+    
     console.log('📊 Backend - Fetched documents count:', documents.length);
     if (documents.length > 0) {
-      console.log('📊 Backend - First document:', documents[0]);
+      console.log('📊 Backend - First document org:', documents[0].organization_id);
     }
 
     // Apply filters
@@ -214,6 +226,7 @@ router.get('/list', authenticateToken, async (req, res) => {
             ai_report_url: doc.ai_report_url || null,
             ai_report_public_id: doc.ai_report_public_id || null,
             hyperlink: doc.hyperlink || null,
+            organization_id: doc.organization_id,
             canDelete: doc.uploaded_by === req.user.id || req.user.role === 'admin',
             canEdit: doc.uploaded_by === req.user.id || req.user.role === 'admin',
             hasAtr: !!atr,

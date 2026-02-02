@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { v2: cloudinary } = require('cloudinary');
 const UploadedATR = require('../models/UploadedATR');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, enforceOrganizationAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -30,15 +30,21 @@ const upload = multer({
 });
 
 // Get all ATR documents
-router.get('/list', authenticateToken, async (req, res) => {
+router.get('/list', authenticateToken, enforceOrganizationAccess, async (req, res) => {
   try {
-    console.log('🔍 Fetching ATR documents...');
+    console.log('🔍 Fetching ATR documents for organization:', req.organizationFilter || 'ALL (Super Admin)');
     
     const { site, department, startDate, search } = req.query;
     let documents;
 
-    // Get all documents first
-    documents = await UploadedATR.getAllATRDocuments();
+    // Get documents with organization filtering
+    if (req.organizationFilter === null) {
+      // Super admin - see all documents
+      documents = await UploadedATR.getAllATRDocuments();
+    } else {
+      // Regular users - only see their organization's documents
+      documents = await UploadedATR.getATRDocumentsByOrganization(req.organizationFilter);
+    }
 
     // Apply filters
     if (search && search.trim()) {
@@ -80,6 +86,7 @@ router.get('/list', authenticateToken, async (req, res) => {
         fileSize: doc.file_size,
         comment: doc.comment || null,
         inferredReportId: doc.inferred_report_id,
+        organizationId: doc.organization_id,
         canDelete: req.user.role === 'admin' || req.user.userType === 'admin',
         canEdit: req.user.role === 'admin' || req.user.userType === 'admin' || doc.uploaded_by === req.user.id
       }))

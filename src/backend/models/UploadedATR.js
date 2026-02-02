@@ -6,11 +6,30 @@ class UploadedATRModel {
       const documents = await database.all(
         `SELECT ad.id, ad.filename, ad.site_name, ad.cloudinary_url, ad.cloudinary_public_id,
                 ad.department, ad.uploaded_by, ad.upload_date, ad.file_size, ad.comment,
-                ad.inferred_report_id,
+                ad.inferred_report_id, ad.organization_id,
                 u.username as uploaded_by_name 
          FROM atr_documents ad 
          LEFT JOIN "user" u ON ad.uploaded_by = u.id 
          ORDER BY ad.upload_date DESC`
+      );
+      return documents;
+    } catch (err) {
+      throw new Error(`Database error: ${err.message}`);
+    }
+  }
+
+  async getATRDocumentsByOrganization(organizationId) {
+    try {
+      const documents = await database.all(
+        `SELECT ad.id, ad.filename, ad.site_name, ad.cloudinary_url, ad.cloudinary_public_id,
+                ad.department, ad.uploaded_by, ad.upload_date, ad.file_size, ad.comment,
+                ad.inferred_report_id, ad.organization_id,
+                u.username as uploaded_by_name 
+         FROM atr_documents ad 
+         LEFT JOIN "user" u ON ad.uploaded_by = u.id 
+         WHERE ad.organization_id = ?
+         ORDER BY ad.upload_date DESC`,
+        [organizationId]
       );
       return documents;
     } catch (err) {
