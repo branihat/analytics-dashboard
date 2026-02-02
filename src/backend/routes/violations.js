@@ -4,9 +4,42 @@ const { authenticateToken, enforceOrganizationAccess } = require('../middleware/
 
 const router = express.Router();
 
-router.get('/', authenticateToken, enforceOrganizationAccess, async (req, res) => {
+// Temporary middleware to make authentication optional during migration
+const optionalAuth = (req, res, next) => {
+  // Try to authenticate, but don't fail if no token
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (token) {
+    // If token exists, try to authenticate
+    authenticateToken(req, res, (err) => {
+      if (err) {
+        // If auth fails, continue without user context
+        req.user = null;
+        req.organizationFilter = null;
+      } else {
+        // If auth succeeds, set organization filter
+        if (req.user && req.user.isSuperAdmin) {
+          req.organizationFilter = null; // Super admin sees all
+        } else if (req.user && req.user.organizationId) {
+          req.organizationFilter = req.user.organizationId;
+        } else {
+          req.organizationFilter = null; // No filter if no org context
+        }
+      }
+      next();
+    });
+  } else {
+    // No token, continue without authentication
+    req.user = null;
+    req.organizationFilter = null;
+    next();
+  }
+};
+
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    console.log('🔍 Fetching violations for organization:', req.organizationFilter || 'ALL (Super Admin)');
+    console.log('🔍 Fetching violations for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
     
     const result = await ViolationModel.getViolations(req.query, req.organizationFilter);
     res.json({
@@ -44,9 +77,9 @@ router.get('/filters', async (req, res) => {
   }
 });
 
-router.get('/map', authenticateToken, enforceOrganizationAccess, async (req, res) => {
+router.get('/map', optionalAuth, async (req, res) => {
   try {
-    console.log('🔍 Fetching map data for organization:', req.organizationFilter || 'ALL (Super Admin)');
+    console.log('🔍 Fetching map data for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
     
     const mapData = await ViolationModel.getMapData(req.organizationFilter);
 

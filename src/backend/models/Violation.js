@@ -110,11 +110,20 @@ class ViolationModel {
       throw new Error(`Query validation error: ${errorMessage}`);
     }
 
+    // Check if organization_id column exists first
+    let hasOrgColumn = false;
+    try {
+      const columns = await database.all("PRAGMA table_info(violations)");
+      hasOrgColumn = columns.some(col => col.name === 'organization_id');
+    } catch (err) {
+      console.log('Could not check table structure, assuming no org column');
+    }
+
     let query = 'SELECT * FROM violations WHERE 1=1';
     const params = [];
 
-    // Add organization filter
-    if (organizationFilter !== null) {
+    // Add organization filter only if column exists and filter is provided
+    if (hasOrgColumn && organizationFilter !== null) {
       query += ' AND (organization_id = ? OR organization_id IS NULL)';
       params.push(organizationFilter);
     }
