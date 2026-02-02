@@ -46,20 +46,20 @@ class UserModel {
       // If role is specified, search only in that specific table
       if (selectedRole === 'admin') {
         user = await database.get(
-          'SELECT id, username, email, password_hash, full_name, permissions, organization_id, created_at FROM admin WHERE email = ?',
+          'SELECT id, username, email, password_hash, full_name, permissions, COALESCE(organization_id, 1) as organization_id, created_at FROM admin WHERE email = ?',
           [email]
         );
         userType = user ? 'admin' : null;
       } else if (selectedRole === 'user') {
         user = await database.get(
-          'SELECT id, username, email, password_hash, full_name, department, access_level, organization_id, created_at FROM "user" WHERE email = ?',
+          'SELECT id, username, email, password_hash, full_name, department, access_level, COALESCE(organization_id, 1) as organization_id, created_at FROM "user" WHERE email = ?',
           [email]
         );
         userType = user ? 'user' : null;
       } else {
         // Fallback: search all tables if no role specified (backward compatibility)
         user = await database.get(
-          'SELECT id, username, email, password_hash, full_name, permissions, organization_id, created_at FROM admin WHERE email = ?',
+          'SELECT id, username, email, password_hash, full_name, permissions, COALESCE(organization_id, 1) as organization_id, created_at FROM admin WHERE email = ?',
           [email]
         );
 
@@ -67,7 +67,7 @@ class UserModel {
           userType = 'admin';
         } else {
           user = await database.get(
-            'SELECT id, username, email, password_hash, full_name, department, access_level, organization_id, created_at FROM "user" WHERE email = ?',
+            'SELECT id, username, email, password_hash, full_name, department, access_level, COALESCE(organization_id, 1) as organization_id, created_at FROM "user" WHERE email = ?',
             [email]
           );
 
@@ -81,6 +81,7 @@ class UserModel {
 
             if (user) {
               userType = user.role || 'user';
+              user.organization_id = 1; // Default to CCL organization for legacy users
             }
           }
         }
@@ -105,10 +106,15 @@ class UserModel {
       let permissions = 'basic';
       let department = null;
       let fullName = user.full_name || user.username;
-      let organizationId = user.organization_id;
+      let organizationId = user.organization_id || 1; // Default to CCL organization
 
       // Check if this is the super admin (not tied to any organization)
       const isSuperAdmin = user.email === 'superadmin@aero.com' || user.username === 'SuperAdmin';
+      
+      // Super admin should not be tied to any specific organization
+      if (isSuperAdmin) {
+        organizationId = null;
+      }
 
       if (userType === 'admin') {
         role = 'admin';
@@ -163,27 +169,27 @@ class UserModel {
 
       if (userType === 'admin') {
         user = await database.get(
-          'SELECT id, username, email, full_name, permissions, organization_id, created_at FROM admin WHERE id = ?',
+          'SELECT id, username, email, full_name, permissions, COALESCE(organization_id, 1) as organization_id, created_at FROM admin WHERE id = ?',
           [userId]
         );
         if (user) user.user_type = 'admin';
       } else if (userType === 'user') {
         user = await database.get(
-          'SELECT id, username, email, full_name, department, access_level, organization_id, created_at FROM "user" WHERE id = ?',
+          'SELECT id, username, email, full_name, department, access_level, COALESCE(organization_id, 1) as organization_id, created_at FROM "user" WHERE id = ?',
           [userId]
         );
         if (user) user.user_type = 'user';
       } else {
         // Check all tables if userType not specified
         user = await database.get(
-          'SELECT id, username, email, full_name, permissions, organization_id, created_at FROM admin WHERE id = ?',
+          'SELECT id, username, email, full_name, permissions, COALESCE(organization_id, 1) as organization_id, created_at FROM admin WHERE id = ?',
           [userId]
         );
         if (user) user.user_type = 'admin';
 
         if (!user) {
           user = await database.get(
-            'SELECT id, username, email, full_name, department, access_level, organization_id, created_at FROM "user" WHERE id = ?',
+            'SELECT id, username, email, full_name, department, access_level, COALESCE(organization_id, 1) as organization_id, created_at FROM "user" WHERE id = ?',
             [userId]
           );
           if (user) user.user_type = 'user';
@@ -194,7 +200,10 @@ class UserModel {
             'SELECT id, username, email, role, created_at FROM users WHERE id = ?',
             [userId]
           );
-          if (user) user.user_type = user.role || 'user';
+          if (user) {
+            user.user_type = user.role || 'user';
+            user.organization_id = 1; // Default to CCL organization for legacy users
+          }
         }
       }
 
@@ -204,6 +213,12 @@ class UserModel {
 
       // Check if this is the super admin
       const isSuperAdmin = user.email === 'superadmin@aero.com' || user.username === 'SuperAdmin';
+      
+      // Super admin should not be tied to any specific organization
+      let organizationId = user.organization_id || 1;
+      if (isSuperAdmin) {
+        organizationId = null;
+      }
 
       return {
         id: user.id,
@@ -214,7 +229,7 @@ class UserModel {
         userType: user.user_type,
         permissions: user.permissions || user.access_level || 'basic',
         department: user.department || null,
-        organizationId: user.organization_id,
+        organizationId: organizationId,
         isSuperAdmin: isSuperAdmin,
         created_at: user.created_at
       };
