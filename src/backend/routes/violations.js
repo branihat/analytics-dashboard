@@ -1,11 +1,14 @@
 const express = require('express');
 const ViolationModel = require('../models/Violation');
+const { authenticateToken, enforceOrganizationAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, enforceOrganizationAccess, async (req, res) => {
   try {
-    const result = await ViolationModel.getViolations(req.query);
+    console.log('🔍 Fetching violations for organization:', req.organizationFilter || 'ALL (Super Admin)');
+    
+    const result = await ViolationModel.getViolations(req.query, req.organizationFilter);
     res.json({
       success: true,
       data: result.violations,
@@ -41,9 +44,11 @@ router.get('/filters', async (req, res) => {
   }
 });
 
-router.get('/map', async (req, res) => {
+router.get('/map', authenticateToken, enforceOrganizationAccess, async (req, res) => {
   try {
-    const mapData = await ViolationModel.getMapData();
+    console.log('🔍 Fetching map data for organization:', req.organizationFilter || 'ALL (Super Admin)');
+    
+    const mapData = await ViolationModel.getMapData(req.organizationFilter);
 
     let filteredData = mapData;
 

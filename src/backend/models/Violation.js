@@ -3,7 +3,7 @@ const { droneReportSchema, violationQuerySchema } = require('../validations/viol
 const { processImageUrl } = require('../utils/imageUtils');
 
 class ViolationModel {
-  async addReport(reportData) {
+  async addReport(reportData, organizationId = null, uploadedBy = null) {
     const { error, value } = droneReportSchema.validate(reportData);
     if (error) {
       const errorMessage = error.details && error.details.length > 0 
@@ -32,9 +32,10 @@ class ViolationModel {
     const reportId = `${value.drone_id}_${value.date}_${Date.now()}`;
 
     try {
+      // Add organization_id and uploaded_by to reports table
       await database.run(
-        'INSERT INTO reports (report_id, drone_id, date, location, total_violations) VALUES (?, ?, ?, ?, ?)',
-        [reportId, value.drone_id, value.date, value.location, value.total_violations || value.violations.length]
+        'INSERT INTO reports (report_id, drone_id, date, location, total_violations, organization_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [reportId, value.drone_id, value.date, value.location, value.total_violations || value.violations.length, organizationId, uploadedBy]
       );
 
       for (const violation of value.violations) {
@@ -52,9 +53,10 @@ class ViolationModel {
         const processedImageUrl = processImageUrl(violation.image_url);
         console.log(`Processing image URL: ${violation.image_url} -> ${processedImageUrl}`);
 
+        // Add organization_id to violations table
         await database.run(`
-          INSERT INTO violations (id, report_id, drone_id, date, location, type, timestamp, latitude, longitude, image_url, confidence, frame_number)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO violations (id, report_id, drone_id, date, location, type, timestamp, latitude, longitude, image_url, confidence, frame_number, organization_id, uploaded_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           violation.id,
           reportId,
@@ -67,7 +69,9 @@ class ViolationModel {
           violation.longitude,
           processedImageUrl,
           violation.confidence || null,
-          violation.frame_number || null
+          violation.frame_number || null,
+          organizationId,
+          uploadedBy
         ]);
       }
 
@@ -86,6 +90,8 @@ class ViolationModel {
         date: value.date,
         location: value.location,
         violations: value.violations,
+        organization_id: organizationId,
+        uploaded_by: uploadedBy,
         uploaded_at: new Date()
       };
 
@@ -95,7 +101,7 @@ class ViolationModel {
     }
   }
 
-  async getViolations(queryParams = {}) {
+  async getViolations(queryParams = {}, organizationFilter = null) {
     const { error, value } = violationQuerySchema.validate(queryParams);
     if (error) {
       const errorMessage = error.details && error.details.length > 0 
@@ -106,6 +112,12 @@ class ViolationModel {
 
     let query = 'SELECT * FROM violations WHERE 1=1';
     const params = [];
+
+    // Add organization filter
+    if (organizationFilter !== null) {
+      query += ' AND (organization_id = ? OR organization_id IS NULL)';
+      params.push(organizationFilter);
+    }
 
     if (value.drone_id && value.drone_id.trim() !== '') {
       query += ' AND drone_id = ?';
@@ -280,13 +292,24 @@ class ViolationModel {
     }
   }
 
-  async getMapData() {
+  async getMapData(organizationFilter = null) {
     try {
-      const violations = await database.all(`
-        SELECT id, type, latitude, longitude, timestamp, date, drone_id, location, image_url
+      let query = `
+        SELECT id, type, latitude, longitude, timestamp, date, drone_id, location, image_url, organization_id
         FROM violations
-        ORDER BY date DESC, timestamp DESC
-      `);
+        WHERE 1=1
+      `;
+      const params = [];
+
+      // Add organization filter
+      if (organizationFilter !== null) {
+        query += ' AND (organization_id = ? OR organization_id IS NULL)';
+        params.push(organizationFilter);
+      }
+
+      query += ' ORDER BY date DESC, timestamp DESC';
+
+      const violations = await database.all(query, params);
       
       return violations;
     } catch (err) {

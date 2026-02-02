@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const ViolationModel = require('../models/Violation');
 const { syncFeaturesFromViolations } = require('../utils/featureSync');
+const { authenticateToken, enforceOrganizationAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -33,8 +34,11 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-router.post('/report', upload.single('report'), async (req, res) => {
+router.post('/report', authenticateToken, enforceOrganizationAccess, upload.single('report'), async (req, res) => {
   try {
+    console.log('🔍 JSON Report Upload Request');
+    console.log('📤 User:', req.user?.username, 'Organization:', req.user?.organizationId);
+
     if (!req.file) {
       return res.status(400).json({
         error: 'No file uploaded',
@@ -57,7 +61,8 @@ router.post('/report', upload.single('report'), async (req, res) => {
     }
 
     try {
-      const savedReport = await ViolationModel.addReport(reportData);
+      // Add organization context to the report data
+      const savedReport = await ViolationModel.addReport(reportData, req.user.organizationId, req.user.id);
       
       // Sync features from newly uploaded violations
       try {
@@ -79,6 +84,7 @@ router.post('/report', upload.single('report'), async (req, res) => {
           date: savedReport.date,
           location: savedReport.location,
           violations_count: savedReport.violations.length,
+          organization_id: savedReport.organization_id,
           uploaded_at: savedReport.uploaded_at
         }
       });
@@ -103,8 +109,11 @@ router.post('/report', upload.single('report'), async (req, res) => {
   }
 });
 
-router.post('/json', async (req, res) => {
+router.post('/json', authenticateToken, enforceOrganizationAccess, async (req, res) => {
   try {
+    console.log('🔍 JSON Data Upload Request');
+    console.log('📤 User:', req.user?.username, 'Organization:', req.user?.organizationId);
+
     const reportData = req.body;
 
     if (!reportData || Object.keys(reportData).length === 0) {
@@ -115,7 +124,8 @@ router.post('/json', async (req, res) => {
     }
 
     try {
-      const savedReport = await ViolationModel.addReport(reportData);
+      // Add organization context to the report data
+      const savedReport = await ViolationModel.addReport(reportData, req.user.organizationId, req.user.id);
 
       // Sync features from newly uploaded violations
       try {
@@ -135,6 +145,7 @@ router.post('/json', async (req, res) => {
           date: savedReport.date,
           location: savedReport.location,
           violations_count: savedReport.violations.length,
+          organization_id: savedReport.organization_id,
           uploaded_at: savedReport.uploaded_at
         }
       });
