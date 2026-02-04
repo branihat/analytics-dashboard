@@ -147,6 +147,11 @@ const Organizations = () => {
   const handleUserSubmit = async (e) => {
     e.preventDefault();
     
+    if (!selectedOrg) {
+      toast.error('No organization selected');
+      return;
+    }
+    
     if (!userFormData.username.trim() || !userFormData.email.trim() || !userFormData.password.trim()) {
       toast.error('Username, email, and password are required');
       return;
@@ -187,6 +192,11 @@ const Organizations = () => {
   };
 
   const handleDeleteUser = async (userId, userName, userType) => {
+    if (!selectedOrg) {
+      toast.error('No organization selected');
+      return;
+    }
+
     if (!window.confirm(`Are you sure you want to delete ${userType} "${userName}"? This action cannot be undone.`)) {
       return;
     }
