@@ -70,6 +70,7 @@ curl -X POST http://localhost:8080/api/auth/login \
 - **JSON Violation Data**: Upload routes now include organization context
 - **PDF Documents**: Inferred Reports and ATR documents filtered by organization
 - **Map Data**: Violations map API respects organization boundaries
+- **Dashboard Analytics**: All analytics endpoints (KPIs, charts, summary) filtered by organization
 - **Super Admin Access**: Can see all data across organizations
 - **User Management**: Organizations can create and manage their own users/admins
 
@@ -86,6 +87,7 @@ curl -X POST http://localhost:8080/api/auth/login \
 - `/api/inferredReports/list` - PDF reports filtered by organization
 - `/api/uploadedATR/list` - ATR documents filtered by organization
 - `/api/organizations/*` - Complete organization management system
+- `/api/analytics/*` - All analytics endpoints filtered by organization (KPIs, charts, summary)
 
 ## 🎯 Expected Results After Deployment
 
@@ -96,6 +98,7 @@ curl -X POST http://localhost:8080/api/auth/login \
 5. **✅ Backward Compatibility**: Existing data assigned to CCL organization
 6. **✅ JSON Data Isolation**: Violation data uploaded by CCL admin only visible to CCL and super admin
 7. **✅ PDF Data Isolation**: Inferred Reports and ATR documents filtered by organization
+8. **✅ Dashboard Data Isolation**: Analytics, KPIs, charts, and summary data filtered by organization
 
 ## 🧪 Testing Checklist
 
@@ -116,6 +119,8 @@ curl -X POST http://localhost:8080/api/auth/login \
 - [ ] Verify CCL admin only sees CCL data
 - [ ] Login with super admin and verify access to all data
 - [ ] Test PDF document uploads and organization filtering
+- [ ] **Test Dashboard Data Isolation**: Verify CCL admin sees fewer violations than super admin
+- [ ] **Test Analytics Charts**: Verify pie charts, time series, and KPIs are organization-specific
 
 ## 🚨 If Something Goes Wrong
 

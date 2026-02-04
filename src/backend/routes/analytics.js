@@ -1,11 +1,46 @@
 const express = require('express');
 const ViolationModel = require('../models/Violation');
+const { authenticateToken, enforceOrganizationAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+// Temporary middleware to make authentication optional during migration
+const optionalAuth = (req, res, next) => {
+  // Try to authenticate, but don't fail if no token
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (token) {
+    // If token exists, try to authenticate
+    authenticateToken(req, res, (err) => {
+      if (err) {
+        // If auth fails, continue without user context
+        req.user = null;
+        req.organizationFilter = null;
+      } else {
+        // If auth succeeds, set organization filter
+        if (req.user && req.user.isSuperAdmin) {
+          req.organizationFilter = null; // Super admin sees all
+        } else if (req.user && req.user.organizationId) {
+          req.organizationFilter = req.user.organizationId;
+        } else {
+          req.organizationFilter = null; // No filter if no org context
+        }
+      }
+      next();
+    });
+  } else {
+    // No token, continue without authentication
+    req.user = null;
+    req.organizationFilter = null;
+    next();
+  }
+};
+
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const analytics = await ViolationModel.getAnalytics();
+    console.log('🔍 Fetching analytics for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
+    const analytics = await ViolationModel.getAnalytics(req.organizationFilter);
     res.json({ success: true, data: analytics });
   } catch (error) {
     console.error('Get analytics error:', error);
@@ -16,9 +51,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/kpis', async (req, res) => {
+router.get('/kpis', optionalAuth, async (req, res) => {
   try {
-    const analytics = await ViolationModel.getAnalytics();
+    console.log('🔍 Fetching KPIs for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
+    const analytics = await ViolationModel.getAnalytics(req.organizationFilter);
     res.json({ success: true, kpis: analytics.kpis });
   } catch (error) {
     console.error('Get KPIs error:', error);
@@ -29,9 +65,10 @@ router.get('/kpis', async (req, res) => {
   }
 });
 
-router.get('/charts/pie', async (req, res) => {
+router.get('/charts/pie', optionalAuth, async (req, res) => {
   try {
-    const analytics = await ViolationModel.getAnalytics();
+    console.log('🔍 Fetching pie chart for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
+    const analytics = await ViolationModel.getAnalytics(req.organizationFilter);
     res.json({
       success: true,
       chart_data: analytics.charts.type_distribution,
@@ -47,9 +84,10 @@ router.get('/charts/pie', async (req, res) => {
   }
 });
 
-router.get('/charts/timeseries', async (req, res) => {
+router.get('/charts/timeseries', optionalAuth, async (req, res) => {
   try {
-    const analytics = await ViolationModel.getAnalytics();
+    console.log('🔍 Fetching time series for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
+    const analytics = await ViolationModel.getAnalytics(req.organizationFilter);
     let timeSeriesData = analytics.charts.time_series;
     
     if (req.query.date_from || req.query.date_to) {
@@ -75,9 +113,10 @@ router.get('/charts/timeseries', async (req, res) => {
   }
 });
 
-router.get('/charts/drones', async (req, res) => {
+router.get('/charts/drones', optionalAuth, async (req, res) => {
   try {
-    const analytics = await ViolationModel.getAnalytics();
+    console.log('🔍 Fetching drone chart for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
+    const analytics = await ViolationModel.getAnalytics(req.organizationFilter);
     res.json({
       success: true,
       chart_data: analytics.charts.drone_performance,
@@ -93,9 +132,10 @@ router.get('/charts/drones', async (req, res) => {
   }
 });
 
-router.get('/charts/locations', async (req, res) => {
+router.get('/charts/locations', optionalAuth, async (req, res) => {
   try {
-    const analytics = await ViolationModel.getAnalytics();
+    console.log('🔍 Fetching location chart for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
+    const analytics = await ViolationModel.getAnalytics(req.organizationFilter);
     res.json({
       success: true,
       chart_data: analytics.charts.location_breakdown,
@@ -111,10 +151,11 @@ router.get('/charts/locations', async (req, res) => {
   }
 });
 
-router.get('/summary', async (req, res) => {
+router.get('/summary', optionalAuth, async (req, res) => {
   try {
-    const analytics = await ViolationModel.getAnalytics();
-    const allViolations = await ViolationModel.getMapData();
+    console.log('🔍 Fetching summary for organization:', req.organizationFilter || 'ALL (No Auth/Super Admin)');
+    const analytics = await ViolationModel.getAnalytics(req.organizationFilter);
+    const allViolations = await ViolationModel.getMapData(req.organizationFilter);
     const recentViolations = allViolations
       .sort((a, b) => (b.date + ' ' + b.timestamp).localeCompare(a.date + ' ' + a.timestamp))
       .slice(0, 5);

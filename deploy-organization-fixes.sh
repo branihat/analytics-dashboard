@@ -53,6 +53,10 @@ curl -X POST http://localhost:8080/api/auth/login \
   -d '{"email":"superadmin@aero.com","password":"SuperAero@2025","role":"admin"}' \
   | grep -q "token" && echo "✅ Login test passed" || echo "⚠️ Login test failed"
 
+# Test dashboard analytics
+echo "📊 Testing dashboard analytics..."
+curl -f http://localhost:8080/api/analytics/kpis && echo "✅ Analytics test passed" || echo "⚠️ Analytics test failed"
+
 echo ""
 echo "🎉 Deployment completed!"
 echo ""
@@ -60,7 +64,13 @@ echo "📋 Next Steps:"
 echo "1. Visit https://aiminesanalytics.com"
 echo "2. Login with superadmin@aero.com / SuperAero@2025"
 echo "3. Test Organizations page"
-echo "4. Test data isolation by uploading JSON data with CCL admin"
+echo "4. Test dashboard data isolation:"
+echo "   - Login with CCL admin and note dashboard numbers"
+echo "   - Login with super admin and verify higher numbers"
+echo "5. Test data isolation by uploading JSON data with CCL admin"
+echo ""
+echo "🧪 Run dashboard isolation test:"
+echo "chmod +x test-dashboard-isolation.sh && ./test-dashboard-isolation.sh"
 echo ""
 echo "🔍 If issues occur, check logs with: pm2 logs analytics-dashboard"
 echo ""

@@ -195,23 +195,44 @@ class ViolationModel {
     }
   }
 
-  async getAnalytics() {
+  async getAnalytics(organizationFilter = null) {
     try {
-      const totalViolationsResult = await database.get('SELECT COUNT(*) as total FROM violations');
+      // Check if organization_id column exists first
+      let hasOrgColumn = false;
+      try {
+        const columns = await database.all("PRAGMA table_info(violations)");
+        hasOrgColumn = columns.some(col => col.name === 'organization_id');
+      } catch (err) {
+        console.log('Could not check table structure, assuming no org column');
+      }
+
+      // Build WHERE clause for organization filtering
+      let whereClause = '';
+      let params = [];
+      
+      if (hasOrgColumn && organizationFilter !== null) {
+        whereClause = ' WHERE (organization_id = ? OR organization_id IS NULL)';
+        params = [organizationFilter];
+      }
+
+      const totalViolationsResult = await database.get(
+        `SELECT COUNT(*) as total FROM violations${whereClause}`, 
+        params
+      );
       const totalViolations = totalViolationsResult.total;
       
       const typeDistribution = await database.all(`
         SELECT type as name, COUNT(*) as value 
-        FROM violations 
+        FROM violations${whereClause}
         GROUP BY type
-      `);
+      `, params);
 
       const timeSeriesData = await database.all(`
         SELECT date, COUNT(*) as violations 
-        FROM violations 
+        FROM violations${whereClause}
         GROUP BY date 
         ORDER BY date
-      `);
+      `, params);
 
       const droneStats = await database.all(`
         SELECT 
@@ -223,11 +244,11 @@ class ViolationModel {
             drone_id, 
             type,
             COUNT(*) as type_count
-          FROM violations 
+          FROM violations${whereClause}
           GROUP BY drone_id, type
         ) 
         GROUP BY drone_id
-      `);
+      `, params);
 
       const dronePerformance = droneStats.map(stat => {
         const breakdown = {};
@@ -246,13 +267,22 @@ class ViolationModel {
 
       const locationStats = await database.all(`
         SELECT location, COUNT(*) as violations 
-        FROM violations 
+        FROM violations${whereClause}
         GROUP BY location
-      `);
+      `, params);
 
-      const uniqueDrones = await database.get('SELECT COUNT(DISTINCT drone_id) as count FROM violations');
-      const uniqueLocations = await database.get('SELECT COUNT(DISTINCT location) as count FROM violations');
-      const uniqueTypes = await database.get('SELECT COUNT(DISTINCT type) as count FROM violations');
+      const uniqueDrones = await database.get(
+        `SELECT COUNT(DISTINCT drone_id) as count FROM violations${whereClause}`, 
+        params
+      );
+      const uniqueLocations = await database.get(
+        `SELECT COUNT(DISTINCT location) as count FROM violations${whereClause}`, 
+        params
+      );
+      const uniqueTypes = await database.get(
+        `SELECT COUNT(DISTINCT type) as count FROM violations${whereClause}`, 
+        params
+      );
 
       return {
         kpis: {
