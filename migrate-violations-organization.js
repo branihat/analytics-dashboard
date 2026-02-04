@@ -1,4 +1,5 @@
 // Migration script to add organization_id columns to violations and reports tables
+require('dotenv').config({ path: './src/backend/.env' });
 const database = require('./src/backend/utils/databaseHybrid');
 
 async function migrateViolationsOrganization() {
