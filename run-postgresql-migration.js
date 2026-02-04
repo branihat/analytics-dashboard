@@ -14,9 +14,21 @@ async function migrateViolationsOrganization() {
     console.log('🔄 Starting violations organization migration with PostgreSQL...');
 
     // Test connection first
-    const testResult = await database.get('SELECT 1 as test, version() as db_version');
-    console.log('✅ Database connection successful');
-    console.log('📊 Database:', testResult.db_version.split(' ')[0], testResult.db_version.split(' ')[1]);
+    let testResult;
+    let dbVersion = 'Unknown';
+    try {
+      // Try PostgreSQL version function first
+      testResult = await database.get('SELECT 1 as test, version() as db_version');
+      dbVersion = testResult.db_version;
+      console.log('✅ Database connection successful (PostgreSQL)');
+      console.log('📊 Database:', dbVersion.split(' ')[0], dbVersion.split(' ')[1]);
+    } catch (err) {
+      // Fallback to SQLite test
+      testResult = await database.get('SELECT 1 as test, sqlite_version() as db_version');
+      dbVersion = 'SQLite ' + testResult.db_version;
+      console.log('✅ Database connection successful (SQLite)');
+      console.log('📊 Database:', dbVersion);
+    }
     console.log('');
 
     // Check if organization_id column exists in violations table
@@ -155,7 +167,7 @@ async function migrateViolationsOrganization() {
     console.log('');
     console.log('📊 Migration Summary:');
     console.log('----------------------------------------');
-    console.log(`   - Database: PostgreSQL (${testResult.db_version.split(' ')[1]})`);
+    console.log(`   - Database: ${dbVersion}`);
     console.log(`   - Total violations: ${totalViolations.count}`);
     console.log(`   - Total reports: ${totalReports.count}`);
     console.log(`   - All existing data assigned to CCL organization (ID: 1)`);

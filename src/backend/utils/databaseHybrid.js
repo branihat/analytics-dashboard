@@ -92,10 +92,11 @@ class HybridDatabase {
       console.error('❌ Falling back to SQLite for all tables (this is safe!)');
       this.usePostgres = false;
       
-      // Close the failed pool
-      if (this.pgPool) {
+      // Close the failed pool safely
+      if (this.pgPool && !this.pgPool.ended) {
         try {
           await this.pgPool.end();
+          this.pgPool = null;
         } catch (closeError) {
           console.error('Error closing failed PostgreSQL pool:', closeError.message);
         }
@@ -482,6 +483,9 @@ class HybridDatabase {
 
   // PostgreSQL methods
   async runPostgres(query, params) {
+    if (!this.pgPool || this.pgPool.ended) {
+      throw new Error('PostgreSQL pool is not available');
+    }
     const client = await this.pgPool.connect();
     try {
       let modifiedQuery = this.convertToPostgres(query);
@@ -503,6 +507,9 @@ class HybridDatabase {
   }
 
   async getPostgres(query, params) {
+    if (!this.pgPool || this.pgPool.ended) {
+      throw new Error('PostgreSQL pool is not available');
+    }
     const client = await this.pgPool.connect();
     try {
       const modifiedQuery = this.convertToPostgres(query);
@@ -514,6 +521,9 @@ class HybridDatabase {
   }
 
   async allPostgres(query, params) {
+    if (!this.pgPool || this.pgPool.ended) {
+      throw new Error('PostgreSQL pool is not available');
+    }
     const client = await this.pgPool.connect();
     try {
       const modifiedQuery = this.convertToPostgres(query);
@@ -569,7 +579,7 @@ class HybridDatabase {
   }
 
   async close() {
-    if (this.pgPool) {
+    if (this.pgPool && !this.pgPool.ended) {
       await this.pgPool.end();
       console.log('PostgreSQL connection closed');
     }
