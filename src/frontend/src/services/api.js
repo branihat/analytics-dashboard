@@ -50,9 +50,9 @@ export const uploadAPI = {
 export const featuresAPI = {
   getFeatures: () => api.get('/features'),
   getFeatureStats: () => api.get('/features/stats'),
-  getFeatureViolations: (featureName, params = {}) => api.get(`/features/${featureName}/violations`, { params }),
+  getFeatureViolations: (featureName, params = {}) => api.get(`/features/${encodeURIComponent(featureName)}/violations`, { params }),
   createFeature: (featureData) => api.post('/features', featureData),
-  deleteFeature: (featureName) => api.delete(`/features/${featureName}`),
+  deleteFeature: (featureName) => api.delete(`/features/${encodeURIComponent(featureName)}`),
 };
 
 export const violationsAPI = {
