@@ -3,6 +3,23 @@ import { Upload as UploadIcon, FileText } from 'lucide-react';
 import { uploadAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
+// Helper function to validate and clean JSON
+const validateAndParseJSON = (jsonString) => {
+  try {
+    // Remove BOM and other invisible characters
+    let cleaned = jsonString.replace(/^\uFEFF/, '').trim();
+    
+    // Remove any non-printable characters except newlines, tabs, and carriage returns
+    cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    
+    // Try to parse the cleaned JSON
+    const parsed = JSON.parse(cleaned);
+    return { success: true, data: parsed, cleaned };
+  } catch (error) {
+    return { success: false, error: error.message, cleaned: jsonString };
+  }
+};
+
 const Upload = () => {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -81,20 +98,24 @@ const Upload = () => {
     }
 
     try {
-      const data = JSON.parse(jsonData);
-      setUploading(true);
+      const parseResult = validateAndParseJSON(jsonData);
       
-      const response = await uploadAPI.uploadJSON(data);
+      if (!parseResult.success) {
+        toast.error(`Invalid JSON format: ${parseResult.error}`);
+        console.error('JSON parsing error:', parseResult.error);
+        console.error('Original JSON data:', jsonData);
+        console.error('Cleaned JSON data:', parseResult.cleaned);
+        return;
+      }
+
+      setUploading(true);
+      const response = await uploadAPI.uploadJSON(parseResult.data);
       toast.success('JSON data uploaded successfully!');
       setJsonData('');
       console.log('Upload response:', response.data);
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        toast.error('Invalid JSON format');
-      } else {
-        const errorMessage = error.response?.data?.message || 'Upload failed';
-        toast.error(errorMessage);
-      }
+      const errorMessage = error.response?.data?.message || 'Upload failed';
+      toast.error(errorMessage);
       console.error('Upload error:', error);
     } finally {
       setUploading(false);
