@@ -64,6 +64,8 @@ router.post('/upload', authenticateToken, enforceOrganizationAccess, upload.sing
     // Get fields from request body
     const { hyperlink, siteName, reportDate } = req.body;
 
+    console.log('📅 Report Date received:', reportDate);
+
     // Validate reportDate
     if (!reportDate) {
       console.log('❌ No report date provided');
@@ -76,6 +78,8 @@ router.post('/upload', authenticateToken, enforceOrganizationAccess, upload.sing
       console.log('❌ Invalid date format');
       return res.status(400).json({ error: 'Invalid date format' });
     }
+
+    console.log('✅ Parsed date object:', dateObj.toISOString());
 
     // Hyperlink is optional - can be added later via edit
 
@@ -129,6 +133,7 @@ router.post('/upload', authenticateToken, enforceOrganizationAccess, upload.sing
 
     // Save to database with organization_id
     console.log('💾 Saving to database...');
+    console.log('📅 Using report date:', dateObj.toISOString());
     const documentData = {
       filename: req.file.originalname,
       cloudinary_url: uploadResult.secure_url,
@@ -142,8 +147,11 @@ router.post('/upload', authenticateToken, enforceOrganizationAccess, upload.sing
       upload_date: dateObj.toISOString() // Use the provided report date
     };
 
+    console.log('📦 Document data being saved:', JSON.stringify(documentData, null, 2));
+
     const document = await InferredReports.createDocument(documentData);
     console.log('✅ Database save successful, document ID:', document.id);
+    console.log('✅ Saved with upload_date:', document.upload_date);
 
     res.status(201).json({
       message: 'Inferred Report uploaded successfully',

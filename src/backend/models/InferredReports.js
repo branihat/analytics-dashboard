@@ -19,12 +19,17 @@ class InferredReportsModel {
       // Use provided upload_date or default to current date
       const dateToUse = upload_date || new Date().toISOString();
       
+      console.log('📅 Model - Received upload_date:', upload_date);
+      console.log('📅 Model - Using date:', dateToUse);
+      
       const result = await database.run(
         `INSERT INTO inferred_reports 
          (filename, cloudinary_url, cloudinary_public_id, site_name, department, uploaded_by, file_size, upload_date, hyperlink, organization_id) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [filename, cloudinary_url, cloudinary_public_id, site_name || null, department, uploaded_by, file_size, dateToUse, hyperlink, organization_id]
       );
+
+      console.log('✅ Model - Document inserted with ID:', result.id);
 
       return {
         id: result.id,
@@ -38,6 +43,7 @@ class InferredReportsModel {
         organization_id: organization_id
       };
     } catch (err) {
+      console.error('❌ Model error:', err);
       throw new Error(`Database error: ${err.message}`);
     }
   }

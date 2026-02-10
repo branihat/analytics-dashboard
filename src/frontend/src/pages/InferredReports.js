@@ -95,6 +95,8 @@ const InferredReports = () => {
   };
 
   const handleUpload = async ({ file, siteName, hyperlink, reportDate }) => {
+    console.log('📅 Frontend - Report date received:', reportDate);
+    
     if (!file) {
       toast.error('Please select a PDF file');
       return;
@@ -129,6 +131,8 @@ const InferredReports = () => {
       formData.append('siteName', siteName);
       formData.append('hyperlink', hyperlink);
       formData.append('reportDate', reportDate);
+
+      console.log('📤 Frontend - Sending FormData with reportDate:', reportDate);
 
       await api.post('/inferred-reports/upload', formData, {
         headers: {
