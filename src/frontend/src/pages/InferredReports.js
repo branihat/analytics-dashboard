@@ -384,7 +384,7 @@ const InferredReports = () => {
                   <th>File Name</th>
                   <th>Actions</th>
                   <th>Site Name</th>
-                  <th>Date/Time</th>
+                  <th>Report Date</th>
                   <th>Video Link</th>
                   <th>Upload ATR</th>
                 </tr>
@@ -426,12 +426,10 @@ const InferredReports = () => {
                       )}
                     </td>
                     <td>{doc.site_name || 'N/A'}</td>
-                    <td>{doc.upload_date ? new Date(doc.upload_date).toLocaleString('en-US', {
+                    <td>{doc.upload_date ? new Date(doc.upload_date).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
+                      day: 'numeric'
                     }) : 'N/A'}</td>
                     <td className="video-link-cell">
                       {editingHyperlink === doc.id ? (
