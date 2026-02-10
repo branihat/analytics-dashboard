@@ -11,15 +11,19 @@ class InferredReportsModel {
       uploaded_by, 
       file_size,
       hyperlink,
-      organization_id
+      organization_id,
+      upload_date
     } = documentData;
 
     try {
+      // Use provided upload_date or default to current date
+      const dateToUse = upload_date || new Date().toISOString();
+      
       const result = await database.run(
         `INSERT INTO inferred_reports 
          (filename, cloudinary_url, cloudinary_public_id, site_name, department, uploaded_by, file_size, upload_date, hyperlink, organization_id) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [filename, cloudinary_url, cloudinary_public_id, site_name || null, department, uploaded_by, file_size, new Date().toISOString(), hyperlink, organization_id]
+        [filename, cloudinary_url, cloudinary_public_id, site_name || null, department, uploaded_by, file_size, dateToUse, hyperlink, organization_id]
       );
 
       return {
@@ -29,7 +33,7 @@ class InferredReportsModel {
         department,
         uploaded_by,
         file_size,
-        upload_date: new Date().toISOString(),
+        upload_date: dateToUse,
         hyperlink: hyperlink,
         organization_id: organization_id
       };

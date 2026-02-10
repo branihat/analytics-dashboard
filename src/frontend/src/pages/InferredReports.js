@@ -94,7 +94,7 @@ const InferredReports = () => {
     }
   };
 
-  const handleUpload = async ({ file, siteName, hyperlink }) => {
+  const handleUpload = async ({ file, siteName, hyperlink, reportDate }) => {
     if (!file) {
       toast.error('Please select a PDF file');
       return;
@@ -107,6 +107,11 @@ const InferredReports = () => {
 
     if (file.size > 25 * 1024 * 1024) {
       toast.error('File size must be less than 25MB');
+      return;
+    }
+
+    if (!reportDate) {
+      toast.error('Please select a report date');
       return;
     }
 
@@ -123,6 +128,7 @@ const InferredReports = () => {
       formData.append('pdf', file);
       formData.append('siteName', siteName);
       formData.append('hyperlink', hyperlink);
+      formData.append('reportDate', reportDate);
 
       await api.post('/inferred-reports/upload', formData, {
         headers: {

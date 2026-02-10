@@ -62,7 +62,20 @@ router.post('/upload', authenticateToken, enforceOrganizationAccess, upload.sing
     }
 
     // Get fields from request body
-    const { hyperlink, siteName } = req.body;
+    const { hyperlink, siteName, reportDate } = req.body;
+
+    // Validate reportDate
+    if (!reportDate) {
+      console.log('❌ No report date provided');
+      return res.status(400).json({ error: 'Report date is required' });
+    }
+
+    // Validate date format
+    const dateObj = new Date(reportDate);
+    if (isNaN(dateObj.getTime())) {
+      console.log('❌ Invalid date format');
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
 
     // Hyperlink is optional - can be added later via edit
 
@@ -125,7 +138,8 @@ router.post('/upload', authenticateToken, enforceOrganizationAccess, upload.sing
       uploaded_by: req.user.id,
       file_size: req.file.size,
       hyperlink: hyperlink || null,
-      organization_id: req.user.organizationId // Add organization context
+      organization_id: req.user.organizationId, // Add organization context
+      upload_date: dateObj.toISOString() // Use the provided report date
     };
 
     const document = await InferredReports.createDocument(documentData);

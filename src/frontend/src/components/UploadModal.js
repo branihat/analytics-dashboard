@@ -11,6 +11,7 @@ const UploadModal = ({
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadSiteName, setUploadSiteName] = useState('');
   const [uploadHyperlink, setUploadHyperlink] = useState('');
+  const [uploadDate, setUploadDate] = useState('');
   const [dragActive, setDragActive] = useState(false);
 
   const handleDrag = (e) => {
@@ -43,12 +44,14 @@ const UploadModal = ({
     onUpload({
       file: uploadFile,
       siteName: uploadSiteName,
-      hyperlink: uploadHyperlink
+      hyperlink: uploadHyperlink,
+      reportDate: uploadDate
     });
     // Reset form
     setUploadFile(null);
     setUploadSiteName('');
     setUploadHyperlink('');
+    setUploadDate('');
   };
 
   const handleClose = () => {
@@ -56,6 +59,7 @@ const UploadModal = ({
       setUploadFile(null);
       setUploadSiteName('');
       setUploadHyperlink('');
+      setUploadDate('');
       onClose();
     }
   };
@@ -142,6 +146,19 @@ const UploadModal = ({
             </select>
           </div>
 
+          {/* Report Date Field */}
+          <div className="form-group">
+            <label htmlFor="upload-date">Report Date *</label>
+            <input
+              type="date"
+              id="upload-date"
+              value={uploadDate}
+              onChange={(e) => setUploadDate(e.target.value)}
+              required
+            />
+            <span className="field-hint">Date of the report (required)</span>
+          </div>
+
           {/* Hyperlink Field */}
           <div className="form-group">
             <label htmlFor="upload-hyperlink">Hyperlink (Optional)</label>
@@ -167,7 +184,7 @@ const UploadModal = ({
           <button 
             className="upload-button"
             onClick={handleSubmit}
-            disabled={uploading || !uploadFile || !uploadSiteName}
+            disabled={uploading || !uploadFile || !uploadSiteName || !uploadDate}
           >
             {uploading ? (
               <>
