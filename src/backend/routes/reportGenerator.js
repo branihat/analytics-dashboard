@@ -50,15 +50,23 @@ router.post('/upload-json', authenticateToken, async (req, res) => {
   }
 });
 
-// Generate report
+// Generate report and upload to Inferred Reports
 router.post('/generate', authenticateToken, async (req, res) => {
   try {
     console.log('🔄 Requesting report generation from Python service...');
     
-    const { video_link } = req.body;
+    const { video_link, site_name, report_date } = req.body;
 
     if (!video_link) {
       return res.status(400).json({ error: 'Video link is required' });
+    }
+
+    if (!site_name) {
+      return res.status(400).json({ error: 'Site name is required' });
+    }
+
+    if (!report_date) {
+      return res.status(400).json({ error: 'Report date is required' });
     }
 
     // Request report generation from Python service
@@ -76,10 +84,87 @@ router.post('/generate', authenticateToken, async (req, res) => {
 
     console.log('✅ Report generated successfully');
 
-    // Forward the PDF to the client
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=Drone_Report.pdf');
-    res.send(Buffer.from(response.data));
+    const pdfBuffer = Buffer.from(response.data);
+    const timestamp = Date.now();
+    const filename = `AI_Report_${timestamp}.pdf`;
+
+    // Upload to Cloudinary
+    console.log('☁️ Uploading report to Cloudinary...');
+    const cloudinary = require('cloudinary').v2;
+    
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dgf5874nz',
+      api_key: process.env.CLOUDINARY_API_KEY || '873245158622578',
+      api_secret: process.env.CLOUDINARY_API_SECRET || '3DF8o9ZZD-WIzuSKfS6kFQoVzp4'
+    });
+
+    const uploadResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'raw',
+          folder: 'inferred-reports/ai-generated',
+          public_id: filename.replace('.pdf', ''),
+          format: 'pdf',
+          type: 'upload',
+          access_mode: 'public'
+        },
+        (error, result) => {
+          if (error) {
+            console.log('❌ Cloudinary upload failed:', error.message);
+            reject(error);
+          } else {
+            console.log('✅ Cloudinary upload successful:', result.secure_url);
+            resolve(result);
+          }
+        }
+      );
+      uploadStream.end(pdfBuffer);
+    });
+
+    // Save to Inferred Reports database
+    console.log('💾 Saving to Inferred Reports...');
+    const InferredReports = require('../models/InferredReports');
+    
+    // Determine department
+    let department = req.user.department;
+    if (!department) {
+      if (req.user.role === 'admin' || req.user.userType === 'admin') {
+        department = 'Admin';
+      } else if (req.user.username === 'AEROVANIA MASTER' || req.user.role === 'super_admin') {
+        department = 'Super Admin';
+      } else {
+        department = 'Admin';
+      }
+    }
+
+    const documentData = {
+      filename: filename,
+      cloudinary_url: uploadResult.secure_url,
+      cloudinary_public_id: uploadResult.public_id,
+      site_name: site_name,
+      department: department,
+      uploaded_by: req.user.id,
+      file_size: pdfBuffer.length,
+      hyperlink: video_link,
+      organization_id: req.user.organizationId,
+      upload_date: new Date(report_date).toISOString()
+    };
+
+    const document = await InferredReports.createDocument(documentData);
+    console.log('✅ Saved to Inferred Reports, document ID:', document.id);
+
+    // Return success with document info
+    res.json({
+      success: true,
+      message: 'Report generated and uploaded to Inferred Reports successfully',
+      document: {
+        id: document.id,
+        filename: document.filename,
+        cloudinary_url: document.cloudinary_url,
+        site_name: document.site_name,
+        upload_date: document.upload_date
+      }
+    });
 
   } catch (error) {
     console.error('❌ Generate report error:', error.message);

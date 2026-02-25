@@ -7,8 +7,28 @@ import '../styles/ReportGenerator.css';
 const ReportGenerator = () => {
   const [jsonFiles, setJsonFiles] = useState([]);
   const [videoLink, setVideoLink] = useState('');
+  const [siteName, setSiteName] = useState('');
+  const [reportDate, setReportDate] = useState('');
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [sites, setSites] = useState([]);
+
+  // Fetch sites on component mount
+  React.useEffect(() => {
+    fetchSites();
+  }, []);
+
+  const fetchSites = async () => {
+    try {
+      const response = await api.get('/sites');
+      if (response.data.success) {
+        setSites(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching sites:', error);
+      toast.error('Failed to load sites');
+    }
+  };
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
@@ -73,31 +93,37 @@ const ReportGenerator = () => {
       return;
     }
 
+    if (!siteName) {
+      toast.error('Please select a site');
+      return;
+    }
+
+    if (!reportDate) {
+      toast.error('Please select a report date');
+      return;
+    }
+
     setGenerating(true);
     try {
       // First upload all JSON files
       await uploadJsonFiles();
 
-      // Then generate the report
-      const response = await api.post('/report-generator/generate', 
-        { video_link: videoLink },
-        { responseType: 'blob' }
-      );
+      // Then generate the report and upload to Inferred Reports
+      const response = await api.post('/report-generator/generate', {
+        video_link: videoLink,
+        site_name: siteName,
+        report_date: reportDate
+      });
 
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Drone_Report_${Date.now()}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-
-      toast.success('Report generated successfully!');
-      
-      // Clear form
-      setJsonFiles([]);
-      setVideoLink('');
+      if (response.data.success) {
+        toast.success('Report generated and uploaded to Inferred Reports successfully!');
+        
+        // Clear form
+        setJsonFiles([]);
+        setVideoLink('');
+        setSiteName('');
+        setReportDate('');
+      }
     } catch (error) {
       console.error('Generation error:', error);
       toast.error(error.response?.data?.error || 'Failed to generate report');
@@ -173,12 +199,48 @@ const ReportGenerator = () => {
         <div className="video-link-section">
           <div className="section-header">
             <LinkIcon size={24} />
-            <h2>Video Evidence Link</h2>
+            <h2>Report Details</h2>
           </div>
 
           <div className="input-group">
+            <label htmlFor="site-name">Site Name *</label>
+            <select
+              id="site-name"
+              value={siteName}
+              onChange={(e) => setSiteName(e.target.value)}
+              className="site-select"
+            >
+              <option value="">Select a site (required)...</option>
+              {sites.map(site => (
+                <option key={site.id || site} value={site.name || site}>
+                  {site.name || site}
+                </option>
+              ))}
+            </select>
+            <span className="input-hint">
+              Select the site where the violations were detected
+            </span>
+          </div>
+
+          <div className="input-group">
+            <label htmlFor="report-date">Report Date *</label>
+            <input
+              type="date"
+              id="report-date"
+              value={reportDate}
+              onChange={(e) => setReportDate(e.target.value)}
+              className="date-input"
+            />
+            <span className="input-hint">
+              Date of the surveillance report
+            </span>
+          </div>
+
+          <div className="input-group">
+            <label htmlFor="video-link">Video Evidence Link *</label>
             <input
               type="url"
+              id="video-link"
               value={videoLink}
               onChange={(e) => setVideoLink(e.target.value)}
               placeholder="https://drive.google.com/..."
@@ -194,18 +256,18 @@ const ReportGenerator = () => {
         <div className="action-section">
           <button
             onClick={generateReport}
-            disabled={generating || uploading || jsonFiles.length === 0 || !videoLink.trim()}
+            disabled={generating || uploading || jsonFiles.length === 0 || !videoLink.trim() || !siteName || !reportDate}
             className="generate-button"
           >
             {generating ? (
               <>
                 <div className="spinner"></div>
-                Generating Report...
+                Generating & Uploading...
               </>
             ) : (
               <>
                 <FileText size={20} />
-                Generate Report
+                Generate & Upload to Inferred Reports
               </>
             )}
           </button>
@@ -216,9 +278,12 @@ const ReportGenerator = () => {
           <h3>📋 How it works:</h3>
           <ol>
             <li>Upload one or more JSON files containing violation data</li>
+            <li>Select the site name from the dropdown</li>
+            <li>Choose the report date</li>
             <li>Provide a video link (Google Drive or direct URL)</li>
-            <li>Click "Generate Report" to create a comprehensive PDF</li>
-            <li>The report will include analytics, charts, and evidence images</li>
+            <li>Click "Generate & Upload to Inferred Reports"</li>
+            <li>The report will be generated with analytics, charts, and evidence images</li>
+            <li>After generation, it will be automatically uploaded to Inferred Reports</li>
             <li>JSON files are automatically cleaned up after generation</li>
           </ol>
         </div>
