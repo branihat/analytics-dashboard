@@ -221,3 +221,13 @@ Video Link: {video_link}
     except Exception as e:
         print("❌ Report generation error:", str(e))
         return jsonify({"error": str(e)}), 500
+
+
+# ==========================================
+# Run Flask App
+# ==========================================
+if __name__ == "__main__":
+    print("🚀 Starting Python Report Generator Service...")
+    print("📍 Service URL: http://127.0.0.1:5000")
+    print("⏹️  Press Ctrl+C to stop")
+    app.run(host="127.0.0.1", port=5000, debug=False)
