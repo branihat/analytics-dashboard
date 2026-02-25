@@ -1,0 +1,47 @@
+{
+  "location": "CCL Mine Site A",
+  "date": "2026-02-25",
+  "drone_id": "DRONE_CCL_001",
+  "violations": [
+    {
+      "id": "violation_001",
+      "type": "stagnant_water",
+      "image_url": "https://via.placeholder.com/800x600/0000FF/FFFFFF?text=Stagnant+Water",
+      "latitude": "23.6345",
+      "longitude": "85.3094",
+      "timestamp": "2026-02-25 09:15:30"
+    },
+    {
+      "id": "violation_002",
+      "type": "vehicle_red_flag_absent",
+      "image_url": "https://via.placeholder.com/800x600/FF0000/FFFFFF?text=No+Red+Flag",
+      "latitude": "23.6352",
+      "longitude": "85.3101",
+      "timestamp": "2026-02-25 09:22:45"
+    },
+    {
+      "id": "violation_003",
+      "type": "unsafe_movement_person_on_haul_road",
+      "image_url": "https://via.placeholder.com/800x600/FFA500/FFFFFF?text=Unsafe+Movement",
+      "latitude": "23.6358",
+      "longitude": "85.3108",
+      "timestamp": "2026-02-25 09:35:12"
+    },
+    {
+      "id": "violation_004",
+      "type": "blocked_drain",
+      "image_url": "https://via.placeholder.com/800x600/008000/FFFFFF?text=Blocked+Drain",
+      "latitude": "23.6365",
+      "longitude": "85.3115",
+      "timestamp": "2026-02-25 10:05:20"
+    },
+    {
+      "id": "violation_005",
+      "type": "person_unsafe",
+      "image_url": "https://via.placeholder.com/800x600/800080/FFFFFF?text=Person+Unsafe",
+      "latitude": "23.6372",
+      "longitude": "85.3122",
+      "timestamp": "2026-02-25 10:18:55"
+    }
+  ]
+}

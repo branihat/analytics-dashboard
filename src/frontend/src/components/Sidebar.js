@@ -22,6 +22,7 @@ const Sidebar = () => {
     { path: '/upload', name: 'Upload', icon: Upload, adminOnly: true },
     { path: '/inferred-reports', name: 'Inferred Reports', icon: FileText },
     { path: '/uploaded-atr', name: 'Uploaded ATR', icon: FileText },
+    { path: '/report-generator', name: 'Report Generator', icon: FileText, adminOnly: true },
     { path: '/map', name: 'Map View', icon: Map },
     { path: '/table', name: 'Table View', icon: Table2 },
   ];

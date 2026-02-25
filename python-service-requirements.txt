@@ -1,0 +1,8 @@
+flask==3.0.0
+reportlab==4.0.7
+matplotlib==3.8.2
+pandas==2.1.4
+requests==2.31.0
+pillow==10.1.0
+gunicorn==21.2.0
+pikepdf==8.10.1

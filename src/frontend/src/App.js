@@ -20,6 +20,7 @@ import Sites from './pages/Sites';
 import InferredReports from './pages/InferredReports';
 import UploadedATR from './pages/UploadedATR';
 import Organizations from './pages/Organizations';
+import ReportGenerator from './pages/ReportGenerator';
 
 // Layout wrapper component
 const AppLayout = ({ children }) => {
@@ -105,6 +106,13 @@ function App() {
             <Route path="/uploaded-atr" element={
               <ProtectedRoute>
                 <UploadedATR />
+              </ProtectedRoute>
+            } />
+            <Route path="/report-generator" element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <ReportGenerator />
+                </AdminRoute>
               </ProtectedRoute>
             } />
             <Route path="/profile" element={
