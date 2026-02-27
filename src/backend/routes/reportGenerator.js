@@ -106,7 +106,8 @@ router.post('/generate', authenticateToken, async (req, res) => {
           public_id: filename.replace('.pdf', ''),
           format: 'pdf',
           type: 'upload',
-          access_mode: 'public'
+          access_mode: 'public',
+          chunk_size: 6000000 // 6MB chunks for large files
         },
         (error, result) => {
           if (error) {

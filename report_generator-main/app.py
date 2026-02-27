@@ -16,15 +16,29 @@ import smtplib
 def compress_pdf(input_path, output_path):
     try:
         with pikepdf.open(input_path) as pdf:
+            # More aggressive compression settings
             pdf.save(
                 output_path,
                 optimize_streams=True,
                 compress_streams=True,
-                object_stream_mode=pikepdf.ObjectStreamMode.generate
+                stream_decode_level=pikepdf.StreamDecodeLevel.generalized,
+                object_stream_mode=pikepdf.ObjectStreamMode.generate,
+                recompress_flate=True,
+                normalize_content=True
             )
-        print("✅ PDF compressed successfully")
+        
+        # Check file size
+        size_mb = os.path.getsize(output_path) / (1024 * 1024)
+        print(f"✅ PDF compressed successfully: {size_mb:.2f} MB")
+        
+        if size_mb > 10:
+            print(f"⚠️  Warning: PDF size ({size_mb:.2f} MB) exceeds 10MB limit")
+            
     except Exception as e:
         print("❌ Compression failed:", str(e))
+        # If compression fails, copy original
+        import shutil
+        shutil.copy(input_path, output_path)
 
 
 # ==========================================
