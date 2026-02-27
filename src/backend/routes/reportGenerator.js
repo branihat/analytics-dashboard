@@ -169,22 +169,33 @@ router.post('/generate', authenticateToken, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Generate report error:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error response:', error.response?.data);
     
     if (error.code === 'ECONNREFUSED') {
       return res.status(503).json({ 
-        error: 'Report generation service is unavailable. Please try again later.' 
+        error: 'Report generation service is unavailable. Please try again later.',
+        details: 'Python service not reachable at ' + PYTHON_SERVICE_URL
       });
     }
 
     if (error.code === 'ECONNABORTED') {
       return res.status(504).json({ 
-        error: 'Report generation timed out. Please try again.' 
+        error: 'Report generation timed out. Please try again.',
+        details: 'Request exceeded 180 second timeout'
       });
     }
 
-    res.status(500).json({ 
-      error: error.response?.data?.error || 'Failed to generate report' 
-    });
+    // More detailed error response
+    const errorMessage = error.response?.data?.error || error.message || 'Failed to generate report';
+    const errorDetails = {
+      error: errorMessage,
+      code: error.code,
+      stage: error.response ? 'python_service' : 'backend_processing'
+    };
+
+    res.status(500).json(errorDetails);
   }
 });
 

@@ -85,51 +85,18 @@ rm /tmp/compress_fix.py
 
 echo "✅ PDF compression improved"
 
-# 4. Update reportGenerator.js to add chunk_size for large uploads
-echo "📝 Step 4: Updating Cloudinary upload with chunk_size..."
+# 4. Update reportGenerator.js with better error handling
+echo "📝 Step 4: Updating reportGenerator.js..."
 cd /var/www/analytics-dashboard/src/backend/routes
 
 # Create backup
-cp reportGenerator.js reportGenerator.js.backup
+cp reportGenerator.js reportGenerator.js.backup.$(date +%Y%m%d_%H%M%S)
 
-# Update the upload configuration
-cat > /tmp/fix_cloudinary.js << 'JSEOF'
-const fs = require('fs');
+# Note: You should upload the updated reportGenerator.js from your local machine
+# Or manually apply the changes for chunk_size and better error logging
 
-let content = fs.readFileSync('reportGenerator.js', 'utf8');
-
-// Find the uploadStream configuration and add chunk_size
-const oldConfig = `const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          resource_type: 'raw',
-          folder: 'inferred-reports/ai-generated',
-          public_id: filename.replace('.pdf', ''),
-          format: 'pdf',
-          type: 'upload',
-          access_mode: 'public'
-        },`;
-
-const newConfig = `const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          resource_type: 'raw',
-          folder: 'inferred-reports/ai-generated',
-          public_id: filename.replace('.pdf', ''),
-          format: 'pdf',
-          type: 'upload',
-          access_mode: 'public',
-          chunk_size: 6000000 // 6MB chunks for large files
-        },`;
-
-content = content.replace(oldConfig, newConfig);
-
-fs.writeFileSync('reportGenerator.js', content);
-console.log('✅ Cloudinary configuration updated');
-JSEOF
-
-node /tmp/fix_cloudinary.js
-rm /tmp/fix_cloudinary.js
-
-echo "✅ Cloudinary upload configuration updated"
+echo "⚠️  Please upload the updated reportGenerator.js from local to VPS"
+echo "   Or manually add chunk_size: 6000000 to Cloudinary upload config"
 
 # 5. Restart services
 echo "📝 Step 5: Restarting services..."
